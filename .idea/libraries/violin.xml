@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="violin">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/violin.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/lib/violin-kdoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib/violin-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
