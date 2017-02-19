@@ -1,0 +1,170 @@
+The WoW authentication protocol is based on a protocol named SRP-6
+(http://srp.stanford.edu/design.html)
+
+1. Script (i.e. what happens)
+---------------------------------------
+
+The server has:
+
+- N
+    A large safe prime (N = 2q+1, where q is prime)
+    All arithmetic is done modulo N.
+- g
+    (g)enerator, set to 7
+- k
+    multiplier, set to 3 (legacy SRP-6)
+
+In theory, N and g could vary accross users / sessions, but in practice, all servers always
+use the same value for them.
+
+The client has:
+
+- I
+    the username
+- p
+    the password
+
+For registered users, the server stores I, but not p.
+Storing passwords is bad in case a data breach happens: if the user used the same password for
+multiple online accounts, the other accounts could be compromised.
+So instead of storing p, the server stores s and v:
+
+- s
+    A random salt (of 20 bytes) used to compute.
+    Each user gets its own salt.
+- v
+    the password verifier (used to confirm the users knows the password)
+    v = g^x % N
+- x
+    the user's private key
+    x = H1(s, I, p) % N
+
+In the original SRP6, a single hash function (H) is selected and x = H(s, p).
+WoW, on the other hand, computes the private key differently, namely:
+
+- H
+    WoW uses SHA-1 has hashing function.
+    SHA-1 produces 20 bytes hashes.
+    H(x, y) = hash of x concated to y
+- H1
+    tmp = H(I, ":", p)
+    tmp.reverse()
+    s = 20 random bytes
+    x = H(s, tmp)
+
+To prove to the server that it knows the correct password, the client must
+compute v on his side (used the salt supplied by the server) and send it back.
+Similarly, the client would like to know that he is communicating with the real server
+(whom he supplied his password to when subscribing).
+
+The problem is that sending v over the network is unsafe: if someone intercepted it,
+he could hijack the user account.
+
+Instead, the client and the server both generate a random secret value. These values are
+called ephemeral because they are generated for each authentication session. These values
+are used to derive others. Among those will be "proofs": values independently computed by the client
+and the server, proving that they know the verifier. The other relevant value is a shared
+session key. This key can be used to encrypt traffic between client and server.
+
+- a
+    The client's secret ephemeral value (19 bytes)
+- A
+    The client's public ephemeral value, which will be sent to the server.
+    A = g^a % N
+- b
+    The server's secret ephemeral value.
+- B
+    The server's public ephemeral value, which will be sent to the client.
+    B = k*v + g^b % N
+- u
+    The scrambling parameter, derived from A and B.
+    u = H(A, B)
+- S
+    ??? (used to encrypt?)
+
+    S is computed independently by the server and by the client.
+    See after this list for the derivation.
+
+    client:
+        S  = (B - k*v) ^ (a + u*x) % N
+    server:
+        S = (A * v^u) ^ b % N
+- K
+    ??? (used to encrypt?)
+    Sp = S padded to 32 bytes
+    even = 16 first even bytes of Sp
+    odd  = 16 first odd  bytes of Sp
+    K = 40 byte array whose
+        even bytes are taken from H(even)
+        odd  bytes are taken from H(odd)
+
+    The way K is computed is another difference from textbook SRP6, where K = H(S).
+
+- M1
+    The client's logon proof, proving that he knows K (and the rest).
+    The server will compute the same value in order to check the proof.
+    M1 = H(H(N) ^ H(g), H(I), s, A, B, K)
+
+- M2
+    The server's logon proof, proving that he knows K (and the rest).
+    The client will compute the same value in order to check the proof.
+    M2 = H(A, M, K)
+
+Here are the derivations of S:
+
+Server:
+    S = (B - k*v) ^ (a + u*x)
+    S = (B - k * g^x) ^ (a + u*x)
+    S = (k*v + g^b - k * g^x) ^ (a + u*x)
+    S = (k * g^x + g^b - k * g^x) ^ (a + u*x)
+    S = g^b ^ (a + u*x)
+    S = g^a^b + g^b^(u*x)
+    S = g^a^b + g^b^u^x
+
+Client:
+    S = (A * v^u) ^ b
+    S = (g^a * v^u) ^ b
+    S = (g^a * g^x^u) ^ b
+    S = g^a^b * g^b^u^x
+
+
+2. A Note on Representations
+---------------------------------------
+
+Above we have used integers in the mathematical sense, but we also need to care about their byte
+representation in order to compute K. The representation is unsigned (no need for an extra 0 bit)
+and little-endian. This representation is also relevant when sending these numbers over
+the network.
+
+In Algalon, the class BigUnsigned abstracts over this difference and encapsulates
+most operation over numbers.
+
+
+3. Data Transfers
+---------------------------------------
+
+client  -> server       I               client logon challenge
+server  -> client       g, N, s, B      server logon challenge
+client  -> server       A, M1           client logon proof
+server  -> client       M2              server logon proof
+
+4. Reconnection
+---------------------------------------
+
+If the client gets disconnect from the server, it may attempt a "re-connection".
+Because it still has K (and the server too), many steps of the regular authentication
+protocol can be bypassed: server and client just have to prove to each other that they know K.
+
+R2 = H(I, R1, random, K)
+
+Investigate:
+- seems less secure than connection: the server doesn't offer proof of knowledge of K!
+
+client -> server    I                   client reconnect challenge
+server -> client    random              server reconnect challenge
+client -> server    R1, R2              client reconnect proof
+server -> client    (acknowledge)       server reconnect proof
+
+---------------------------------------
+TODO
+    - find out what S and/or K are used for

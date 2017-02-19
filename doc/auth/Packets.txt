@@ -1,0 +1,153 @@
+The exact usefulness of all field marked as "unknown" or suffixed with "(?)" is
+unknown. In the later case, the name derives from existing server implementation,
+without them giving details or using the values.
+
+-------------------------------------------------------------------------------
+Client Logon Challenge
+
+000     opcode (0) [1]
+001     unknown (van: 3, bc/lk: 8) [1]
+002     size (30 + username length) [2]
+004     game name (WoW\0) [4]
+008     major version [1]
+009     minor version [1]
+010     bugfix version [1]
+011     build [2]
+013     platform (68x\0 or CPP\0) [4]
+017     OS (niW\0 or XSO\0) [4]
+021     IETF lang tag (e.g. SUne for enUS) [4]
+025     timezone bias (local time - UTC in minutes) [4]
+029     ip address [4]
+033     username length [1]
+034     username (I) [username length]
+---     [34 + username length]
+
+-------------------------------------------------------------------------------
+Server Logon Challenge
+
+000     opcode  (0) [1]
+001     unknown (0) [1]
+002     errcode [1]
+003     ephemeral value (B) [32]
+035     g length (1) [1]
+036     generator (g) (7)  [1]
+037     N length (32) [1]
+038     safe prime (N) [32]
+070     salt (s) [32]
+102     unknown (random) [16]
+118     security flags [1]
+119     security bytes [0 or 1 or 12 or 20]
+---     [119 + some bytes depending on flags)]
+
+In case of error, only the three first bytes are sent.
+Algalon doesn't currently make use of the security bytes.
+
+-------------------------------------------------------------------------------
+Client Logon Proof
+
+000     opcode (1) [1]
+001     ephemeral value (A) [32]
+033     M1 [20]
+053     crc_hash (?) (zeroed) [20]
+073     number of keys (?) [1]
+074     unknown [1]
+---     [75]
+
+-------------------------------------------------------------------------------
+Server Logon Proof
+
+Builds up to 6005 (included), i.e. all Vanilla build except the 1.12.3 chinese patch:
+
+000     opcode (1) [1]
+001     error [1]
+002     M2 [20]
+022     unknown (0) [4]
+---     [26]
+
+In case of error, only the two first bytes are sent.
+
+Algalon currently only supports this old version.
+
+---------------------------------------
+
+Later builds:
+
+000     opcode (1) [1]
+001     error [1]
+002     M2 [20]
+022     account flags (pro pass) [4]
+026     survey id (0)
+030     unknown flags (0) [2]
+---     [32]
+
+In case of errors, only the two first bytes are sent, followed by the bytes 3 and 0 (?).
+
+Trinity/Mangos documents the following account flags:
+- 0x01 = GM
+- 0x08 = Trial
+- 0x00800000 = pro pass (arena tournament)
+
+One of the unknown flag is known (AccountMsgAvailable = 0x01 according to mangos).
+
+-------------------------------------------------------------------------------
+Client Reconnect Challenge
+
+Same as Client Logon Challenge, but with opcode 3.
+
+-------------------------------------------------------------------------------
+Server Reconnect Challenge
+
+000     opcode (3) [1]
+001     error [1]
+002     random reconnect value [16]
+018     unknown2 (zeroed) [16]
+---     [34]
+
+In case of error, only the two first bytes are sent.
+
+-------------------------------------------------------------------------------
+Client Reconnect Proof
+
+000     opcode (4) [1]
+001     R1 [16]
+017     R2 [20]
+037     R3 (?) [20]
+057     number of keys (?) [1]
+---     [58]
+
+-------------------------------------------------------------------------------
+Server Reconnect Proof
+
+Vanilla builds:
+
+000     opcode (4) [1]
+001     error [1]
+---     [2]
+
+Later builds:
+
+000     opcode (4) [1]
+001     error [1]
+002     unknown [2]
+---     [4]
+
+In case of error, Algalon and other never sends an errors, choosing to always kill the connection
+instead (as a problem at this stage most likely indicates that something fishy is going).
+
+-------------------------------------------------------------------------------
+
+
+
+reconnect proof (wcell):
+
+// R1: md5 hash of account name and secure random
+byte[] md5Hash = packet.ReadBytes(16);
+
+// R2: byte[20] sha1 hash of accountname, md5 from above, reconnectProof, byte[40] sessionkey
+byte[] shaHash1 = packet.ReadBytes(20);
+
+// R3: byte[20] sha1 hash of md5 from above and byte[20] (all zero)
+byte[] shaHash2 = packet.ReadBytes(20);
+
+
+--> secure random?
