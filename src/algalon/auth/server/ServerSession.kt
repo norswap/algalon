@@ -1,6 +1,7 @@
 package algalon.auth.server
 import algalon.utils.BigUnsigned
 import algalon.auth.Version
+import algalon.auth.server.ServerSession.Status.*
 import algalon.database.ChilledSessions
 import algalon.database.User
 import algalon.utils.HasStateString
@@ -35,20 +36,15 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
     // Session State
 
     enum class Status {
+        // order matters
         INITIAL,
         SENT_CHALLENGE,
-        SENT_PROOF,
         SENT_RECONNECT_CHALLENGE,
-        SENT_RECONNECT_PROOF,
-        OFFENSIVE_CLOSE
+        SENT_PROOF,
+        SENT_RECONNECT_PROOF
     }
 
-    var status = Status.INITIAL
-
-    var sent_challenge = false
-    var sent_proof = false
-    var sent_reconnect_challenge = false
-    var sent_reconnect_proof = false
+    var status = INITIAL
     var offensive_close = false
 
     // ---------------------------------------------------------------------------------------------
@@ -86,7 +82,7 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
     // TODO these things may not be initialized
     override fun state_string()
         = "ServerSession {\n" +
-        "    state: $sent_challenge / $sent_proof,\n" +
+        "    state: $status,\n" +
         "    version: $version,\n" +
         "    user: $username,\n" +
         "}"
@@ -97,7 +93,7 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
     {
         server.count.decrementAndGet()
 
-        if (!offensive_close && sent_proof)
+        if (status.ordinal > SENT_PROOF.ordinal && !offensive_close)
             ChilledSessions.chill(username!!, user.K!!)
     }
 

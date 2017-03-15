@@ -130,8 +130,8 @@ fun ServerSession.receive_packet()
 
 fun ServerSession.handle_client_challenge()
 {
-    if (sent_challenge || sent_reconnect_challenge)
-        return die("second challenge: {}")
+    if (status != INITIAL)
+        return die("out of order challenge: {}")
 
     rbuf.skip(1) // skip unknown
     len = rbuf.ushort
@@ -208,7 +208,7 @@ fun ServerSession.handle_user (user: User?)
     sbuf.put(0) // security flags
 
     write {
-        sent_challenge = true
+        status = SENT_CHALLENGE
         trace_auth("sent server challenge")
         receive_packet()
     }
@@ -220,11 +220,8 @@ fun ServerSession.handle_client_proof()
 {
     trace_auth("received client proof")
 
-    if (!sent_challenge)
+    if (status != SENT_CHALLENGE)
         return die("out of order proof: {}")
-
-    if (sent_proof)
-        return die("second proof: {}")
 
     val A   = rbuf.big_unsigned(32)
     val M1c = rbuf.big_unsigned(20)
@@ -268,7 +265,7 @@ fun ServerSession.handle_client_proof()
     }
 
     write {
-        sent_proof = true
+        status = SENT_PROOF
         trace_auth("sent server proof")
         receive_packet()
     }
@@ -298,7 +295,7 @@ fun ServerSession.handle_user_reconnect (user: User?)
     sbuf.put(ByteArray(16)) // zeroed
 
     write {
-        sent_reconnect_challenge = true
+        status = SENT_RECONNECT_CHALLENGE
         trace_auth("sent server reconnect challenge")
         receive_packet()
     }
@@ -310,11 +307,8 @@ fun ServerSession.handle_reconnect_proof()
 {
     trace_auth("received client reconnect proof")
 
-    if (!sent_reconnect_challenge)
+    if (status != SENT_RECONNECT_CHALLENGE)
         return die("out of order reconnect proof: {}")
-
-    if (sent_reconnect_proof)
-        return die("second reconnect proof: {}")
 
     val R1  = rbuf.big_unsigned(16)
     val R2c = rbuf.big_unsigned(20)
@@ -339,7 +333,7 @@ fun ServerSession.handle_reconnect_proof()
         sbuf.putShort(0) // unknown
 
     write {
-        sent_reconnect_proof = true
+        status = SENT_RECONNECT_PROOF
         trace_auth("sent server reconnect proof")
         receive_packet()
     }
