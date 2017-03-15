@@ -1,8 +1,10 @@
 package algalon.auth.server
 import algalon.utils.BigUnsigned
 import algalon.auth.Version
+import algalon.database.ChilledSessions
 import algalon.database.User
 import algalon.utils.HasStateString
+import algalon.utils.b
 import algalon.utils.net.Socket
 import algalon.utils.net.SocketHook
 import java.nio.ByteBuffer
@@ -32,10 +34,22 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
     // ---------------------------------------------------------------------------------------------
     // Session State
 
+    enum class Status {
+        INITIAL,
+        SENT_CHALLENGE,
+        SENT_PROOF,
+        SENT_RECONNECT_CHALLENGE,
+        SENT_RECONNECT_PROOF,
+        OFFENSIVE_CLOSE
+    }
+
+    var status = Status.INITIAL
+
     var sent_challenge = false
     var sent_proof = false
     var sent_reconnect_challenge = false
     var sent_reconnect_proof = false
+    var offensive_close = false
 
     // ---------------------------------------------------------------------------------------------
     // User Data
@@ -54,10 +68,10 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
 
     var len = 0
     var username_len = 0
-    var user_handling: (ServerSession.(User?) -> Unit)? = null
+    var challenge_opcode = 0.b
     lateinit var b1: BigUnsigned
     lateinit var B2: BigUnsigned
-    lateinit var reconnect_random: ByteArray
+    lateinit var random_challenge: ByteArray
 
     // ---------------------------------------------------------------------------------------------
 
@@ -69,6 +83,7 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
 
     // ---------------------------------------------------------------------------------------------
 
+    // TODO these things may not be initialized
     override fun state_string()
         = "ServerSession {\n" +
         "    state: $sent_challenge / $sent_proof,\n" +
@@ -81,6 +96,9 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
     override fun close_hook()
     {
         server.count.decrementAndGet()
+
+        if (!offensive_close && sent_proof)
+            ChilledSessions.chill(username!!, user.K!!)
     }
 
     // ---------------------------------------------------------------------------------------------

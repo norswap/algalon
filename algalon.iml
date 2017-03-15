@@ -9,13 +9,25 @@
               <CompilerSettings />
             </option>
             <option name="k2jsCompilerArguments">
-              <K2JSCompilerArguments />
+              <K2JSCompilerArguments>
+                <option name="moduleKind" value="plain" />
+              </K2JSCompilerArguments>
+            </option>
+            <option name="k2jvmCompilerArguments">
+              <K2JVMCompilerArguments>
+                <option name="jvmTarget" value="1.6" />
+              </K2JVMCompilerArguments>
             </option>
             <option name="_commonCompilerArguments">
-              <DummyImpl />
+              <DummyImpl>
+                <option name="languageVersion" value="1.1" />
+                <option name="apiVersion" value="1.1" />
+                <option name="coroutinesWarn" value="true" />
+              </DummyImpl>
             </option>
           </KotlinCompilerInfo>
         </option>
+        <option name="useProjectSettings" value="false" />
         <option name="versionInfo">
           <KotlinVersionInfo>
             <option name="apiLevel" value="1.1" />
@@ -33,8 +45,8 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="violin" level="project" />
     <orderEntry type="library" name="tinylog" level="project" />
     <orderEntry type="library" name="KotlinJavaRuntime" level="application" />
+    <orderEntry type="library" name="jctools" level="project" />
   </component>
 </module>

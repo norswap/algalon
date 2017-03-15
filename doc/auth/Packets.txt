@@ -6,7 +6,7 @@ without them giving details or using the values.
 Client Logon Challenge
 
 000     opcode (0) [1]
-001     unknown (van: 3, bc/lk: 8) [1]
+001     protocol version (according to WCell) (van: 3, bc/lk: 8) [1]
 002     size (30 + username length) [2]
 004     game name (WoW\0) [4]
 008     major version [1]
@@ -34,7 +34,7 @@ Server Logon Challenge
 037     N length (32) [1]
 038     safe prime (N) [32]
 070     salt (s) [32]
-102     unknown (random) [16]
+102     random (for crc_hash in client logon proof) [16]
 118     security flags [1]
 119     security bytes [0 or 1 or 12 or 20]
 ---     [119 + some bytes depending on flags)]
@@ -42,16 +42,74 @@ Server Logon Challenge
 In case of error, only the three first bytes are sent.
 Algalon doesn't currently make use of the security bytes.
 
+Here is the breakdown of what has to be sent if using security bytes, according to WCell
+(not much is known):
+
+    if ((securityFlag & 0x1) == 0x1) // PIN input (20 bytes)
+    {
+        packet.WriteInt(0);
+        packet.Write(new byte[16]);
+    }
+    if ((securityFlag & 0x2) == 0x2) // Matrix Input (12 bytes)
+    {
+        packet.Write((byte)0);
+        packet.Write((byte)0);
+        packet.Write((byte)0);
+        packet.Write((byte)0);
+        packet.Write(0UL);
+    }
+    if ((securityFlag & 0x4) == 0x4) // Security Token input (1 bytes)
+    {
+        packet.Write((byte)1);
+    }
+
 -------------------------------------------------------------------------------
 Client Logon Proof
 
 000     opcode (1) [1]
 001     ephemeral value (A) [32]
 033     M1 [20]
-053     crc_hash (?) (zeroed) [20]
+053     crc_hash [20]
 073     number of keys (?) [1]
-074     unknown [1]
+074     security flags [1]
 ---     [75]
+
+According to WCell, the crc hash is the SHA1 of ephemeral value A concatenated with the 16 random
+bytes sent in the server logon challenge. However, I confirmed this to be false. It's not a
+matter of using HMAC-SHA1 either.
+
+There is a post on OwnedCore that says that it is the SHA1 of A and the hash of some game files (or
+parts of them) (namely Wow.exe, DivxDecoder.dll and unicows.dll). The SpuriousEmu repo does indeed
+have the logic and files with precalculated hashes. These hashes then have to be combined using
+HMAC-SHA1 using the random bytes as key.
+
+According to WCell, if number of keys is non-zero, we have to read 72 bytes of data per key.
+We simply assume it to be always 0. It's not known what the purpose of these keys is.
+
+    ushort keyUnk1 = packet.ReadUInt16();
+    uint keyUnk2 = packet.ReadUInt32();
+    byte[] keyUnkArray = packet.ReadBytes(4);
+    // sha of the SRP's PublicEphemeralValueA, PublicEphemeralValueB, and 20 unknown bytes
+    byte[] keyUnkSha = packet.ReadBytes(20);
+
+According to WCell, depending on the security flags, additional data may be preprended.
+We simply assume it to be always 0. Here is the handling code for those extra bytes.
+
+    if ((securityFlags & 1) != 0)
+    {
+        // PIN
+        byte[] pinRandom = packet.ReadBytes(16);
+        byte[] pinSha = packet.ReadBytes(20);
+    }
+    if ((securityFlags & 2) != 0)
+    {
+        byte[] security2Buf = packet.ReadBytes(20);
+    }
+    if ((securityFlags & 4) != 0)
+    {
+        byte arrLen = packet.ReadByte();
+        byte[] security4Buf = packet.ReadBytes(arrLen);
+    }
 
 -------------------------------------------------------------------------------
 Server Logon Proof
@@ -76,7 +134,7 @@ Later builds:
 001     error [1]
 002     M2 [20]
 022     account flags (pro pass) [4]
-026     survey id (0)
+026     survey id (0) [4]
 030     unknown flags (0) [2]
 ---     [32]
 
@@ -99,7 +157,7 @@ Server Reconnect Challenge
 
 000     opcode (3) [1]
 001     error [1]
-002     random reconnect value [16]
+002     reconnect_challenge [16]
 018     unknown2 (zeroed) [16]
 ---     [34]
 
@@ -111,9 +169,21 @@ Client Reconnect Proof
 000     opcode (4) [1]
 001     R1 [16]
 017     R2 [20]
-037     R3 (?) [20]
+037     R3 [20]
 057     number of keys (?) [1]
 ---     [58]
+
+R1, R2 and R3 is the terminology used by TrinityCore and Mangos.
+
+WCell says that R1 is "md5 hash of account name and secure random", but it's not certain what
+"secure random" is. The working theory is simply a random value picked by the client. Observation
+seems to corroborate this: R1 changes between run, even when the random reconnect challenge
+sent by the server is fixed.
+
+(R2: see Crypto.txt)
+
+R3 is a the SHA-1 hash of R1 followed by 20 zero bytes. This is of dubious utility
+and all servers ignore it.
 
 -------------------------------------------------------------------------------
 Server Reconnect Proof
@@ -135,19 +205,3 @@ In case of error, Algalon and other never sends an errors, choosing to always ki
 instead (as a problem at this stage most likely indicates that something fishy is going).
 
 -------------------------------------------------------------------------------
-
-
-
-reconnect proof (wcell):
-
-// R1: md5 hash of account name and secure random
-byte[] md5Hash = packet.ReadBytes(16);
-
-// R2: byte[20] sha1 hash of accountname, md5 from above, reconnectProof, byte[40] sessionkey
-byte[] shaHash1 = packet.ReadBytes(20);
-
-// R3: byte[20] sha1 hash of md5 from above and byte[20] (all zero)
-byte[] shaHash2 = packet.ReadBytes(20);
-
-
---> secure random?

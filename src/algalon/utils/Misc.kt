@@ -2,6 +2,7 @@ package algalon.utils
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Arrays
+import java.util.Random
 
 // -------------------------------------------------------------------------------------------------
 
@@ -18,6 +19,18 @@ val RANDOM = SecureRandom()
  * BEWARE: NOT THREAD-SAFE
  */
 val SHA1 = MessageDigest.getInstance("SHA-1")
+
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Returns an array of [n] random bytes.
+ */
+fun Random.bytes(n: Int): ByteArray
+{
+    val random = ByteArray(n)
+    nextBytes(random)
+    return random
+}
 
 // -------------------------------------------------------------------------------------------------
 

@@ -40,8 +40,11 @@ object Users
 
     // ---------------------------------------------------------------------------------------------
 
-    fun load (name_upper: String, handler: (User?) -> Unit) {
-        handler(users[name_upper])
+    fun load (name_upper: String, handler: (User?) -> Unit)
+    {
+        val user = users[name_upper]
+        if (user != null) user.K = ChilledSessions.defrost(name_upper)
+        handler(user)
     }
 }
 

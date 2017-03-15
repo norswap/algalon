@@ -13,7 +13,7 @@ import org.pmw.tinylog.Logger
 
 fun ClientSession.read (read: Int, callback: () -> Unit)
 {
-    sock.read(read, rbuf, this, callback)
+    socket.read(read, rbuf, this, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -21,7 +21,28 @@ fun ClientSession.read (read: Int, callback: () -> Unit)
 fun ClientSession.write (callback: () -> Unit)
 {
     sbuf.flip()
-    sock.write(sbuf, this, callback)
+    socket.write(sbuf, this, callback)
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun ClientSession.wrong_opcode(expect: Byte): Boolean
+{
+    if (rbuf.byte == expect.i) return false
+    Logger.info("wrong opcode: {}", this)
+    socket.close()
+    return true
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun ClientSession.auth_failure(msg: String): Boolean
+{
+    val err = rbuf.byte
+    if (err == AUTH_SUCCESS.i) return false
+    Logger.info(msg, errcode_name(err))
+    socket.close()
+    return true
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -33,13 +54,21 @@ private inline fun ClientSession.trace_auth (msg: String) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.authenticate()
+fun ClientSession.connect()
+{
+    challenge_opcode = LOGON_CHALLENGE
+    send_challenge()
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fun ClientSession.send_challenge()
 {
     val username = client.username.utf8
 
-    sbuf.put(LOGON_CHALLENGE) // opcode
+    sbuf.put(challenge_opcode)
     sbuf.put(3) // unknown
-    sbuf.putShort((CLOGON_CHALLENGE_FIXED_LENGTH - 4 + username.size).s) // length
+    sbuf.putShort((CLOGON_CHALLENGE_FIX_LENGTH - 4 + username.size).s) // length
     sbuf.put(client.game)
     sbuf.put(client.version.major.b)
     sbuf.put(client.version.minor.b)
@@ -55,7 +84,12 @@ fun ClientSession.authenticate()
 
     write {
         trace_auth("sent client challenge")
-        read (SLOGON_CHALLENGE_MIN_LENGTH) { receive_server_challenge() }
+        when (challenge_opcode) {
+            LOGON_CHALLENGE
+                -> read (SLOGON_CHALLENGE_MIN_LENGTH)       { receive_server_challenge() }
+            RECONNECT_CHALLENGE
+                -> read (SRECONNECT_CHALLENGE_MIN_LENGTH)   { receive_reconnect_challenge() }
+        }
     }
 }
 
@@ -63,22 +97,12 @@ fun ClientSession.authenticate()
 
 fun ClientSession.receive_server_challenge()
 {
-    if (rbuf.byte != LOGON_CHALLENGE.i) {
-        Logger.info("wrong opcode: {}", this)
-        sock.close()
-        return
-    }
-
+    if (wrong_opcode(LOGON_CHALLENGE)) return
     rbuf.skip(1) // unknown
-    val err = rbuf.byte
-    if (err != AUTH_SUCCESS.i) {
-        Logger.info("server logon challenge error: ${errcode_name(err)}")
-        sock.close()
-        return
-    }
+    if (auth_failure("server logon challenge error: ")) return
 
     // We ignore optional security bytes, our server doesn't use them.
-    read (SLOGON_CHALLENGE_REST_LENGTH) {
+    read (SLOGON_CHALLENGE_REM_LENGTH) {
         trace_auth("received server challenge")
         handle_server_challenge()
     }
@@ -141,20 +165,10 @@ fun ClientSession.handle_server_challenge()
 
 fun ClientSession.receive_server_proof()
 {
-    if (rbuf.byte != LOGON_PROOF.i) {
-        Logger.warn("wrong opcode: {}", this)
-        sock.close()
-        return
-    }
+    if (wrong_opcode(LOGON_PROOF)) return
+    if (auth_failure("server logon proof error: {}")) return
 
-    val err = rbuf.byte
-    if (err != AUTH_SUCCESS.i) {
-        Logger.info("server logon proof error: ${errcode_name(err)}")
-        sock.close()
-        return
-    }
-
-    read (SLOGON_PROOF_REST_LENGTH) {
+    read (SLOGON_PROOF_REM_LENGTH) {
         trace_auth("received server proof")
         handle_server_proof()
     }
@@ -169,12 +183,83 @@ fun ClientSession.handle_server_proof()
 
     if (M2s != M2c) {
         Logger.warn("invalid server proof: {}", this)
-        sock.close()
+        socket.close()
         return
     }
 
     rbuf.skip(4) // account flags
     trace_auth("validated server proof")
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fun ClientSession.reconnect()
+{
+    challenge_opcode = RECONNECT_CHALLENGE
+    send_challenge()
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun ClientSession.receive_reconnect_challenge()
+{
+    if (wrong_opcode(RECONNECT_CHALLENGE)) return
+    if (auth_failure("server reconnect challenge error: {}")) return
+
+    // We ignore optional security bytes, our server doesn't use them.
+    read (SRECONNECT_CHALLENGE_REM_LENGTH) {
+        trace_auth("received server reconnect challenge")
+        handle_reconnect_challenge()
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun ClientSession.handle_reconnect_challenge()
+{
+    val reconnect_challenge = ByteArray(16)
+    rbuf.get(reconnect_challenge)
+    rbuf.skip(16) // unknown2
+
+    val user_utf8 = client.username.utf8
+    val random = ByteArray(16) // wild guess, but doesn't matter
+    RANDOM.nextBytes(random)
+    val R1 = md5.digest(user_utf8, random)
+
+    sha1.update(user_utf8)
+    sha1.update(R1)
+    sha1.update(reconnect_challenge)
+    sha1.update(K.bytes)
+    val R2 = sha1.digest()
+
+    val R3 = md5.digest(R1, ByteArray(20))
+
+    sbuf.put(RECONNECT_PROOF)
+    sbuf.put(R1)
+    sbuf.put(R2)
+    sbuf.put(R3)
+    sbuf.put(0) // number of keys
+
+    write {
+        trace_auth("sent client reconnect proof")
+        read (client.version.SRECONNECT_PROOF_LENGTH) {
+            trace_auth("received server reconnect proof")
+            handle_reconnect_proof()
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fun ClientSession.handle_reconnect_proof()
+{
+    if (wrong_opcode(RECONNECT_PROOF)) return
+    if (auth_failure("server reconnect proof error: {}")) return
+
+    if (client.version.major > 1)
+        rbuf.skip(2) // unknown
+
+    trace_auth("validate server reconnect proof")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,18 @@ import java.nio.ByteBuffer
 // -------------------------------------------------------------------------------------------------
 
 /**
+ * Returns an array containing the [n] next bytes from the buffer.
+ */
+fun ByteBuffer.bytes(n: Int): ByteArray
+{
+    val result = ByteArray(n)
+    get(result)
+    return result
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/**
  * Returns the next byte in the byte buffer, as an int.
  */
 inline val ByteBuffer.byte: Int

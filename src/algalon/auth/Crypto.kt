@@ -1,4 +1,4 @@
-@file:Suppress("NOTHING_TO_INLINE", "PackageDirectoryMismatch")
+@file:Suppress("PackageDirectoryMismatch")
 package algalon.auth.crypto
 import algalon.utils.BigUnsigned
 import algalon.utils.SHA1
@@ -45,7 +45,7 @@ fun user_verifier (
     private_key: BigUnsigned,
     g: BigUnsigned = algalon.auth.crypto.g,
     N: BigUnsigned = algalon.auth.crypto.N)
-    : BigUnsigned
+: BigUnsigned
     = g.exp_mod(private_key, N)
 
 // -------------------------------------------------------------------------------------------------
@@ -58,14 +58,14 @@ fun session_key_hash (session_key: BigUnsigned): BigUnsigned
     val half = ByteArray(16)
 
     for (i in 0..15) half[i] = bytes[i * 2]
-    val shaEven = SHA1.digest(half)
+    val sha_even = SHA1.digest(half)
 
     for (i in 0..15) half[i] = bytes[i * 2 + 1]
-    val shaOdd  = SHA1.digest(half)
+    val sha_odd  = SHA1.digest(half)
 
     for (i in 0..19) {
-        hash[i * 2] = shaEven[i]
-        hash[i * 2 + 1] = shaOdd[i]
+        hash[i * 2] = sha_even[i]
+        hash[i * 2 + 1] = sha_odd[i]
     }
 
     return BigUnsigned(hash)

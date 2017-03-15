@@ -72,7 +72,7 @@ session key. This key can be used to encrypt traffic between client and server.
     The client's public ephemeral value, which will be sent to the server.
     A = g^a % N
 - b
-    The server's secret ephemeral value.
+    The server's secret ephemeral value (19 bytes).
 - B
     The server's public ephemeral value, which will be sent to the client.
     B = k*v + g^b % N
@@ -80,7 +80,7 @@ session key. This key can be used to encrypt traffic between client and server.
     The scrambling parameter, derived from A and B.
     u = H(A, B)
 - S
-    ??? (used to encrypt?)
+    ??? (used to encrypt?) // TODO
 
     S is computed independently by the server and by the client.
     See after this list for the derivation.
@@ -90,7 +90,7 @@ session key. This key can be used to encrypt traffic between client and server.
     server:
         S = (A * v^u) ^ b % N
 - K
-    ??? (used to encrypt?)
+    ??? (used to encrypt?) // TODO
     Sp = S padded to 32 bytes
     even = 16 first even bytes of Sp
     odd  = 16 first odd  bytes of Sp
@@ -151,19 +151,44 @@ server  -> client       M2              server logon proof
 4. Reconnection
 ---------------------------------------
 
-If the client gets disconnect from the server, it may attempt a "re-connection".
-Because it still has K (and the server too), many steps of the regular authentication
-protocol can be bypassed: server and client just have to prove to each other that they know K.
+If the client gets disconnect from the server, it may attempt a "re-connection". Because it still
+has K (and the server may have it too), many steps of the regular authentication protocol can be
+bypassed: the client just thas to prove that it knows K.
 
-R2 = H(I, R1, random, K)
+Moreover, the reconnection procedure can be used to reclaim a session: things like
+position in the queue can be retrieved.
 
-Investigate:
-- seems less secure than connection: the server doesn't offer proof of knowledge of K!
+The server picks a random 16 bytes value which I call "reconnect_challenge" (other servers call it
+"reconnect_proof" but this is backwards: this doesn't prove anything).
+
+The client sends back R1 (the hash of the username and a random value) and R2:
+
+R2 = H(I, R1, reconnect_challenge, K)
+
+The server checks this (by performing the same computation) and acknowledges the proof.
+The client is then re-connected.
+
+This seems to me less secure than the connection protocol: the server doesn't have
+to prove that it knows K. On the other hand, the server cannot derive K from R1 and R2, and so
+won't be able to read things encrypted with K.
+// TODO does this happen?
 
 client -> server    I                   client reconnect challenge
-server -> client    random              server reconnect challenge
+server -> client    reconnect_challenge server reconnect challenge
 client -> server    R1, R2              client reconnect proof
 server -> client    (acknowledge)       server reconnect proof
+
+I'm using the same terminology as other servers for the packet names, but again "server reconnect
+proof" is a bit misleading: nothing is being proved.
+
+**How to test this stuff**
+
+(Tested on Vanilla only)
+
+Close the connection on the server after sending the server logon proof.
+
+The client will be stuck on "Success!". Click "Cancel" and the client will immediately
+send the reconnect challenge.
 
 ---------------------------------------
 TODO

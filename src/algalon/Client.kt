@@ -1,13 +1,9 @@
 package algalon
 import algalon.auth.Version
 import algalon.auth.client.ClientSession
-import algalon.auth.client.authenticate
 import algalon.settings.*
-import algalon.utils.net.Socket
 import algalon.utils.reverse_array
 import algalon.utils.uppercase_ascii
-import org.pmw.tinylog.Logger
-import java.util.concurrent.CompletableFuture
 
 class Client (
     username: String,
@@ -23,16 +19,7 @@ class Client (
     val username = username.uppercase_ascii()
     val password = password.uppercase_ascii()
 
-    fun start()
-    {
-        val sock = Socket.open()
-        CompletableFuture
-            .supplyAsync { sock.connect(AUTH_SERVER_ADDR) }
-            .thenRun { ClientSession(this, sock).authenticate() }
-            .exceptionally {
-                Logger.info("authentication failure: {}", this)
-                Logger.debug(it)
-                null
-            }
+    fun start() {
+        ClientSession(this).connect(AUTH_SERVER_ADDR)
     }
 }

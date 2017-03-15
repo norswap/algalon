@@ -3,6 +3,7 @@ import algalon.auth.*
 import algalon.auth.crypto.*
 import algalon.auth.err.*
 import algalon.auth.op.*
+import algalon.auth.server.ServerSession.Status.*
 import algalon.database.User
 import algalon.database.Users
 import algalon.settings.*
@@ -34,6 +35,7 @@ private fun ServerSession.write (callback: () -> Unit)
 private fun ServerSession.die (msg: String)
 {
     Logger.warn(msg, this)
+    offensive_close = true
     sock.close(this)
 }
 
@@ -93,12 +95,13 @@ fun ServerSession.rate_bookkeeping()
 fun ServerSession.receive_packet()
     = read(1) {
         val opcode = rbuf.get()
+        trace_auth("opcode = $opcode")
         when (opcode) {
             LOGON_CHALLENGE -> {
                 rate_bookkeeping()
-                read(CLOGON_CHALLENGE_FIXED_LENGTH - 1) {
+                read(CLOGON_CHALLENGE_FIX_LENGTH - 1) {
                     trace_auth("received client challenge")
-                    user_handling = ServerSession::handle_user
+                    challenge_opcode = opcode
                     handle_client_challenge()
                 }
             }
@@ -107,9 +110,9 @@ fun ServerSession.receive_packet()
             }
             RECONNECT_CHALLENGE -> {
                 rate_bookkeeping()
-                read (CRECONNECT_CHALLENGE_FIXED_LENGTH - 1) {
+                read (CRECONNECT_CHALLENGE_FIX_LENGTH - 1) {
                     trace_auth("received client reconnect challenge")
-                    user_handling = ServerSession::handle_user_reconnect
+                    challenge_opcode = opcode
                     handle_client_challenge()
                 }
             }
@@ -118,7 +121,7 @@ fun ServerSession.receive_packet()
             }
             else -> {
                 // no logging (avoid attacks)
-                sock.close()
+                sock.close(this)
             }
         }
     }
@@ -147,7 +150,7 @@ fun ServerSession.handle_client_challenge()
     rbuf.skip(20)
     username_len = rbuf.byte
 
-    if (CLOGON_CHALLENGE_FIXED_LENGTH - 4 + username_len != len)
+    if (CLOGON_CHALLENGE_FIX_LENGTH - 4 + username_len != len)
         return die ("inconsistent lengths: {}")
 
     if (username_len > MAX_USERNAME_LEN) {
@@ -165,13 +168,15 @@ fun ServerSession.handle_username()
     if (rbuf.remaining() != username_len)
         return die("crap at end of logon packet: {}")
 
-    val array = ByteArray(username_len)
-    rbuf.get(array)
-    username = array.toString(UTF_8)
-
+    username = rbuf.bytes(username_len).toString(UTF_8)
     trace_auth("auth initiated: $username")
 
-    Users.load(username!!) { user_handling?.invoke(this, it) }
+    Users.load(username!!) {
+        when (challenge_opcode) {
+            LOGON_CHALLENGE     -> handle_user(it)
+            RECONNECT_CHALLENGE -> handle_user_reconnect(it)
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -187,11 +192,8 @@ fun ServerSession.handle_user (user: User?)
     b1 = BigUnsigned.random(19)
     B2 = (k * user.verifier + g.exp_mod(b1, N)) % N
     trace_auth("B = $B2")
+    random_challenge = RANDOM.bytes(16)
 
-    // all servers do it like this
-    // not sure what sending all 0s would entail
-    val ubytes = ByteArray(16)
-    RANDOM.nextBytes(ubytes)
 
     sbuf.put(LOGON_CHALLENGE) // opcode
     sbuf.put(0) // unknown
@@ -202,7 +204,7 @@ fun ServerSession.handle_user (user: User?)
     sbuf.put(32) // N length
     sbuf.put(N.bytes)
     sbuf.put(user.salt)
-    sbuf.put(ubytes) // unknown
+    sbuf.put(random_challenge) // unknown
     sbuf.put(0) // security flags
 
     write {
@@ -224,16 +226,15 @@ fun ServerSession.handle_client_proof()
     if (sent_proof)
         return die("second proof: {}")
 
-    val A = rbuf.big_unsigned(32)
+    val A   = rbuf.big_unsigned(32)
     val M1c = rbuf.big_unsigned(20)
+    rbuf.skip(22) // crc_hash, number of keys & security flags
 
-    // skip crc_hash, number of keys & security flags
-    rbuf.skip(22)
-
-    trace_auth("A = $A")
 
     if (A.is_zero)
         return die("zero SRP6 A value: {}")
+
+    trace_auth("A = $A")
 
     val u = BigUnsigned(sha1.digest(A.bytes, B2.bytes))
     val S = (A * user.verifier.exp_mod(u, N)).exp_mod(b1, N)
@@ -286,18 +287,14 @@ fun ServerSession.handle_user_reconnect (user: User?)
 
     if (user.K == null) {
         trace_auth("unknown session")
-        // TODO maybe it's better to simply die?
         return write_error(RECONNECT_CHALLENGE, AUTH_FAIL_UNKNOWN1)
     }
 
-    // all servers do it like this
-    // not sure what sending all 0s would entail
-    reconnect_random = ByteArray(16)
-    RANDOM.nextBytes(reconnect_random)
+    random_challenge = RANDOM.bytes(16)
 
     sbuf.put(RECONNECT_CHALLENGE) // opcode
     sbuf.put(AUTH_SUCCESS) // error
-    sbuf.put(reconnect_random)
+    sbuf.put(random_challenge)
     sbuf.put(ByteArray(16)) // zeroed
 
     write {
@@ -321,19 +318,17 @@ fun ServerSession.handle_reconnect_proof()
 
     val R1  = rbuf.big_unsigned(16)
     val R2c = rbuf.big_unsigned(20)
-    //rbuf.skip(20) // unused R3
-    val R3 = rbuf.big_unsigned(20)
+    rbuf.skip(21) // unused R3 + number of keys
+
     sha1.update(user.username.utf8)
     sha1.update(R1.bytes)
-    sha1.update(reconnect_random)
+    sha1.update(random_challenge)
     sha1.update(user.K!!.bytes)
     val R2s = BigUnsigned(sha1.digest())
 
     trace_auth("R1 = $R1")
     trace_auth("client R2 = $R2c")
     trace_auth("server R2 = $R2s")
-    trace_auth("R3 = $R3")
-    trace_auth("random = ${BigUnsigned(reconnect_random)}")
 
     if (R2c != R2s)
         return die("invalid reconnect logon proof: {}")
