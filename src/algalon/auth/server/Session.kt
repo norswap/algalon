@@ -40,8 +40,7 @@ class Session(val server: LogonServer, val sock: Socket): HasStateString, Socket
         INITIAL,
         SENT_CHALLENGE,
         SENT_RECONNECT_CHALLENGE,
-        SENT_PROOF,
-        SENT_RECONNECT_PROOF
+        CONNECTED
     }
 
     var status = INITIAL
@@ -93,7 +92,7 @@ class Session(val server: LogonServer, val sock: Socket): HasStateString, Socket
     {
         server.count.decrementAndGet()
 
-        if (status.ordinal > SENT_PROOF.ordinal && !offensive_close)
+        if (status.ordinal > CONNECTED.ordinal && !offensive_close)
             ChilledSessions.chill(username!!, user.K!!)
     }
 

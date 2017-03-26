@@ -142,7 +142,7 @@ fun Session.handle_client_challenge()
     rbuf.skip(4) // skip game name
     version = version(rbuf.byte, rbuf.byte, rbuf.byte, rbuf.short.i)
 
-    if (version is InvalidVersion) {
+    if (!version.accepted) {
         Logger.info("invalid version ({}): {}", version, this)
         return write_error(LOGON_CHALLENGE, AUTH_FAIL_VERSION_INVALID)
     }
@@ -265,7 +265,7 @@ fun Session.handle_client_proof()
     }
 
     write {
-        status = SENT_PROOF
+        status = CONNECTED
         trace_auth("sent server proof")
         receive_packet()
     }
@@ -333,7 +333,7 @@ fun Session.handle_reconnect_proof()
         sbuf.putShort(0) // unknown
 
     write {
-        status = SENT_RECONNECT_PROOF
+        status = CONNECTED
         trace_auth("sent server reconnect proof")
         receive_packet()
     }
