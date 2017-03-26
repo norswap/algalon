@@ -228,8 +228,8 @@ fun Session.handle_client_proof()
     rbuf.skip(22) // crc_hash, number of keys & security flags
 
 
-    if (A.is_zero)
-        return die("zero SRP6 A value: {}")
+    if ((A % N).is_zero)
+        return die("zero SRP6 (A % N) value: {}")
 
     trace_auth("A = $A")
 
