@@ -1,4 +1,5 @@
 package algalon
+import algalon.auth.version
 import algalon.auth.Version
 import algalon.auth.client.ClientSession
 import algalon.settings.*
@@ -8,7 +9,7 @@ import algalon.utils.uppercase_ascii
 class Client (
     username: String,
     password: String,
-    val version: Version = Version(1, 12, 1, 5875),
+    val version: Version = version(1, 12, 1),
     val game: ByteArray = "WoW".reverse_array(nul = true),
     val platform: ByteArray = "x86".reverse_array(nul = true),
     val os: ByteArray = "Win".reverse_array(nul = true),
