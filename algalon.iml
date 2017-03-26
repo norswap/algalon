@@ -48,5 +48,6 @@
     <orderEntry type="library" name="tinylog" level="project" />
     <orderEntry type="library" name="KotlinJavaRuntime" level="application" />
     <orderEntry type="library" name="jctools" level="project" />
+    <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
   </component>
 </module>
