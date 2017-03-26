@@ -11,14 +11,14 @@ import org.pmw.tinylog.Logger
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.read (read: Int, callback: () -> Unit)
+fun Session.read (read: Int, callback: () -> Unit)
 {
     socket.read(read, rbuf, this, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.write (callback: () -> Unit)
+fun Session.write (callback: () -> Unit)
 {
     sbuf.flip()
     socket.write(sbuf, this, callback)
@@ -26,7 +26,7 @@ fun ClientSession.write (callback: () -> Unit)
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.wrong_opcode(expect: Byte): Boolean
+fun Session.wrong_opcode(expect: Byte): Boolean
 {
     if (rbuf.byte == expect.i) return false
     Logger.info("wrong opcode: {}", this)
@@ -36,7 +36,7 @@ fun ClientSession.wrong_opcode(expect: Byte): Boolean
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.auth_failure(msg: String): Boolean
+fun Session.auth_failure(msg: String): Boolean
 {
     val err = rbuf.byte
     if (err == AUTH_SUCCESS.i) return false
@@ -48,13 +48,13 @@ fun ClientSession.auth_failure(msg: String): Boolean
 // -------------------------------------------------------------------------------------------------
 
 @Suppress("NOTHING_TO_INLINE")
-private inline fun ClientSession.trace_auth (msg: String) {
+private inline fun Session.trace_auth (msg: String) {
     if (TRACE_AUTH) Logger.trace("[$this] $msg")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.connect()
+fun Session.connect()
 {
     challenge_opcode = LOGON_CHALLENGE
     send_challenge()
@@ -62,7 +62,7 @@ fun ClientSession.connect()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.send_challenge()
+fun Session.send_challenge()
 {
     val username = client.username.utf8
 
@@ -95,7 +95,7 @@ fun ClientSession.send_challenge()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.receive_server_challenge()
+fun Session.receive_server_challenge()
 {
     if (wrong_opcode(LOGON_CHALLENGE)) return
     rbuf.skip(1) // unknown
@@ -110,7 +110,7 @@ fun ClientSession.receive_server_challenge()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.handle_server_challenge()
+fun Session.handle_server_challenge()
 {
     val B = rbuf.big_unsigned(32)
     val g_len = rbuf.ubyte
@@ -163,7 +163,7 @@ fun ClientSession.handle_server_challenge()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.receive_server_proof()
+fun Session.receive_server_proof()
 {
     if (wrong_opcode(LOGON_PROOF)) return
     if (auth_failure("server logon proof error: {}")) return
@@ -176,7 +176,7 @@ fun ClientSession.receive_server_proof()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.handle_server_proof()
+fun Session.handle_server_proof()
 {
     val M2s = rbuf.big_unsigned(20)
     val M2c = BigUnsigned(sha1.digest(A.bytes, M1.bytes, K.bytes))
@@ -193,7 +193,7 @@ fun ClientSession.handle_server_proof()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.reconnect()
+fun Session.reconnect()
 {
     challenge_opcode = RECONNECT_CHALLENGE
     send_challenge()
@@ -201,7 +201,7 @@ fun ClientSession.reconnect()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.receive_reconnect_challenge()
+fun Session.receive_reconnect_challenge()
 {
     if (wrong_opcode(RECONNECT_CHALLENGE)) return
     if (auth_failure("server reconnect challenge error: {}")) return
@@ -215,7 +215,7 @@ fun ClientSession.receive_reconnect_challenge()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ClientSession.handle_reconnect_challenge()
+fun Session.handle_reconnect_challenge()
 {
     val reconnect_challenge = ByteArray(16)
     rbuf.get(reconnect_challenge)
@@ -251,7 +251,7 @@ fun ClientSession.handle_reconnect_challenge()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ClientSession.handle_reconnect_proof()
+fun Session.handle_reconnect_proof()
 {
     if (wrong_opcode(RECONNECT_PROOF)) return
     if (auth_failure("server reconnect proof error: {}")) return

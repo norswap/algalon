@@ -1,7 +1,7 @@
 package algalon
 import algalon.auth.version
 import algalon.auth.Version
-import algalon.auth.client.ClientSession
+import algalon.auth.client.Session
 import algalon.settings.*
 import algalon.utils.reverse_array
 import algalon.utils.uppercase_ascii
@@ -21,6 +21,6 @@ class Client (
     val password = password.uppercase_ascii()
 
     fun start() {
-        ClientSession(this).connect(AUTH_SERVER_ADDR)
+        Session(this).connect(AUTH_SERVER_ADDR)
     }
 }

@@ -1,7 +1,7 @@
 package algalon.auth.server
 import algalon.utils.BigUnsigned
 import algalon.auth.Version
-import algalon.auth.server.ServerSession.Status.*
+import algalon.auth.server.Session.Status.*
 import algalon.database.ChilledSessions
 import algalon.database.User
 import algalon.utils.HasStateString
@@ -15,7 +15,7 @@ import java.security.MessageDigest
 /**
  * Container for data related to an authentication attempt on the server side.
  */
-class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, SocketHook
+class Session(val server: LogonServer, val sock: Socket): HasStateString, SocketHook
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ class ServerSession (val server: AuthServer, val sock: Socket): HasStateString, 
 
     // TODO these things may not be initialized
     override fun state_string()
-        = "ServerSession {\n" +
+        = "Session {\n" +
         "    state: $status,\n" +
         "    version: $version,\n" +
         "    user: $username,\n" +

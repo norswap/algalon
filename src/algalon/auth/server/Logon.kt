@@ -3,7 +3,7 @@ import algalon.auth.*
 import algalon.auth.crypto.*
 import algalon.auth.err.*
 import algalon.auth.op.*
-import algalon.auth.server.ServerSession.Status.*
+import algalon.auth.server.Session.Status.*
 import algalon.database.User
 import algalon.database.Users
 import algalon.settings.*
@@ -17,14 +17,14 @@ import org.pmw.tinylog.Logger
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
 
-private fun ServerSession.read (read: Int, callback: () -> Unit)
+private fun Session.read (read: Int, callback: () -> Unit)
 {
     sock.read(read, rbuf, this, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
 
-private fun ServerSession.write (callback: () -> Unit)
+private fun Session.write (callback: () -> Unit)
 {
     sbuf.flip()
     sock.write(sbuf, this, callback)
@@ -32,7 +32,7 @@ private fun ServerSession.write (callback: () -> Unit)
 
 // -------------------------------------------------------------------------------------------------
 
-private fun ServerSession.die (msg: String)
+private fun Session.die (msg: String)
 {
     Logger.warn(msg, this)
     offensive_close = true
@@ -42,14 +42,14 @@ private fun ServerSession.die (msg: String)
 // -------------------------------------------------------------------------------------------------
 
 @Suppress("NOTHING_TO_INLINE")
-private inline fun ServerSession.trace_auth (msg: String)
+private inline fun Session.trace_auth (msg: String)
 {
     if (TRACE_AUTH) Logger.trace("[$this] $msg")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.write_error (opcode: Byte, errcode: Byte)
+fun Session.write_error (opcode: Byte, errcode: Byte)
 {
     when (opcode) {
         LOGON_CHALLENGE ->
@@ -74,13 +74,13 @@ fun ServerSession.write_error (opcode: Byte, errcode: Byte)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.rate_bookkeeping()
+fun Session.rate_bookkeeping()
 {
     // Each IP address is allowed 1 connection attempt per second (starting with 10).
     // Establish more and you get a 100 seconds penality for each additional connection.
 
     val now = now
-    val info = server.rate_book.getOrPut(sock.host) { AuthServer.IPInfo(now, 10) }
+    val info = server.rate_book.getOrPut(sock.host) { LogonServer.IPInfo(now, 10) }
     info.budget += now - info.timestamp - 1
     info.timestamp = now
     if (info.budget > 10) info.budget = 10 // disallow hoarding budget
@@ -92,7 +92,7 @@ fun ServerSession.rate_bookkeeping()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.receive_packet()
+fun Session.receive_packet()
     = read(1) {
         val opcode = rbuf.get()
         trace_auth("opcode = $opcode")
@@ -128,7 +128,7 @@ fun ServerSession.receive_packet()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.handle_client_challenge()
+fun Session.handle_client_challenge()
 {
     if (status != INITIAL)
         return die("out of order challenge: {}")
@@ -163,7 +163,7 @@ fun ServerSession.handle_client_challenge()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ServerSession.handle_username()
+fun Session.handle_username()
 {
     if (rbuf.remaining() != username_len)
         return die("crap at end of logon packet: {}")
@@ -181,7 +181,7 @@ fun ServerSession.handle_username()
 
 // -------------------------------------------------------------------------------------------------
 
-fun ServerSession.handle_user (user: User?)
+fun Session.handle_user (user: User?)
 {
     if (user == null) {
         trace_auth("unknown username")
@@ -216,7 +216,7 @@ fun ServerSession.handle_user (user: User?)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.handle_client_proof()
+fun Session.handle_client_proof()
 {
     trace_auth("received client proof")
 
@@ -273,7 +273,7 @@ fun ServerSession.handle_client_proof()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.handle_user_reconnect (user: User?)
+fun Session.handle_user_reconnect (user: User?)
 {
     if (user == null) {
         trace_auth("unknown username")
@@ -303,7 +303,7 @@ fun ServerSession.handle_user_reconnect (user: User?)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun ServerSession.handle_reconnect_proof()
+fun Session.handle_reconnect_proof()
 {
     trace_auth("received client reconnect proof")
 

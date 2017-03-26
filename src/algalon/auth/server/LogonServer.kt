@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Accepts connection requests to the auth server.
  */
-class AuthServer (n_threads: Int = N_AUTH_THREADS)
+class LogonServer(n_threads: Int = N_AUTH_THREADS)
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -28,7 +28,7 @@ class AuthServer (n_threads: Int = N_AUTH_THREADS)
     /** The ID of this auth server (in case there are multiple */
     val id = next_id++
 
-    /** The number of running [ServerSession]. */
+    /** The number of running [Session]. */
     val count = AtomicInteger(0)
 
     /** Record connection information per IP to limit the connection rate. */
@@ -47,7 +47,7 @@ class AuthServer (n_threads: Int = N_AUTH_THREADS)
         {
             try {
                 if (!shutdown) {
-                    thread_pool.execute { ServerSession(this@AuthServer, socket).receive_packet() }
+                    thread_pool.execute { Session(this@LogonServer, socket).receive_packet() }
                     accept_socket.accept(accept_socket, this)
                 }
                 else socket.close()

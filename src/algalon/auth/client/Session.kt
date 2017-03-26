@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture
 /**
  * Container for data related to an authentication attempt on the client side.
  */
-class ClientSession (val client: Client): HasStateString
+class Session(val client: Client): HasStateString
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -51,7 +51,7 @@ class ClientSession (val client: Client): HasStateString
     // ---------------------------------------------------------------------------------------------
 
     override fun state_string()
-        = "ClientSession {\n" +
+        = "Session {\n" +
         "    version: ${client.version},\n" +
         "    user: ${client.username},\n" +
         "}"
