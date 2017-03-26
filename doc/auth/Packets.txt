@@ -205,3 +205,40 @@ In case of error, Algalon and other never sends an errors, choosing to always ki
 instead (as a problem at this stage most likely indicates that something fishy is going).
 
 -------------------------------------------------------------------------------
+Client Realm List Request
+
+000     opcode (16) [1]
+001     unknown [4]
+---     [5]
+
+-------------------------------------------------------------------------------
+Server Realm List Reply
+
+The packet is composed of three parts: header, realm records, footer.
+
+Header:
+
+000     opcode (16) [1]
+001     size of rest of packet (total - 3) [2]
+003     unknown [4]
+007     number of realms [4/2]
+---     [8]
+
+Realm Record:
+
+000     type [4]
+004     flags [1]
+005     name [?]
+...     address ("<ip>:<port>") [?]
+...     population [TODO]
+...     num chars [1]
+...     time_zone [1] [???]
+...     unknown [1]
+---
+
+Footer:
+
+000     unknown [2]
+---     [2]
+
+-------------------------------------------------------------------------------
