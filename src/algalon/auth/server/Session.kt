@@ -19,7 +19,7 @@ class Session(val server: LogonServer, val sock: Socket): HasStateString, Socket
 {
     // ---------------------------------------------------------------------------------------------
 
-    val sbuf: ByteBuffer = ByteBuffer.allocate(256)
+    var sbuf: ByteBuffer = ByteBuffer.allocate(256)
     val rbuf: ByteBuffer = ByteBuffer.allocate(256)
 
     // NOTE: if this is only ever used in a single callback, make local

@@ -66,4 +66,12 @@ val Version.SRECONNECT_PROOF_LENGTH
     get() = if (major == 1) SRECONNECT_PROOF_LENGTH_V1
             else            SRECONNECT_PROOF_LENGTH_V2
 
+// -------------------------------------------------------------------------------------------------
+
+val CREALM_LIST_REQUEST_LENGTH          = 5
+
+// -------------------------------------------------------------------------------------------------
+
+val SREALM_LIST_MAX_RECORD_LENGTH       = 128 // TODO check/change
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////

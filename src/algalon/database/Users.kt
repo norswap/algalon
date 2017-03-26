@@ -1,4 +1,5 @@
 package algalon.database
+import algalon.auth.Realms
 import algalon.auth.crypto.private_key
 import algalon.auth.crypto.user_verifier
 import algalon.utils.BigUnsigned
@@ -45,6 +46,14 @@ object Users
         val user = users[name_upper]
         if (user != null) user.K = ChilledSessions.defrost(name_upper)
         handler(user)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
+    fun get_character_counts (user: User, handler: (Map<Int, Int>) -> Unit)
+    {
+        // stubby
+        handler(Realms.list.associate { it.id to 0 })
     }
 }
 

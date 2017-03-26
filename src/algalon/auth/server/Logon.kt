@@ -11,6 +11,8 @@ import algalon.utils.*
 import algalon.utils.net.*
 import kotlin.text.Charsets.UTF_8
 import org.pmw.tinylog.Logger
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 // The famous secret Xi Chi fraternity handshake.
 
@@ -118,6 +120,9 @@ fun Session.receive_packet()
             }
             RECONNECT_PROOF -> {
                 read (CRECONNECT_PROOF_LENGTH - 1) { handle_reconnect_proof() }
+            }
+            REALM_LIST -> {
+                read (CREALM_LIST_REQUEST_LENGTH - 1) { handle_realmlist() }
             }
             else -> {
                 // no logging (avoid attacks)
@@ -335,6 +340,99 @@ fun Session.handle_reconnect_proof()
     write {
         status = CONNECTED
         trace_auth("sent server reconnect proof")
+        receive_packet()
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fun Session.handle_realmlist()
+{
+    if (status != CONNECTED)
+        return die("out of order realm list request: {}")
+
+    rbuf.skip(4) // unknown
+    // TODO hold on to persistent realmlist, include it here
+    Users.get_character_counts(user) { send_realmlist(it) }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun Session.send_realmlist (character_counts: Map<Int, Int>)
+{
+    val realms = Realms.list
+
+    val MAX_FIXED_SIZE = 15
+    val FOOTER_SIZE = 2
+    val MAX_NAME_SIZE = 256 // TODO lower? -> test
+
+    val old_sbuf = sbuf
+    sbuf = ByteBuffer.allocate(realms.size * (MAX_NAME_SIZE + MAX_FIXED_SIZE) + FOOTER_SIZE)
+    sbuf.order(ByteOrder.LITTLE_ENDIAN)
+
+    sbuf.put(REALM_LIST)
+    sbuf.putShort(0) // placeholder for packet size
+    sbuf.skip(if (version.major > 1) 6 else 8) // placeholder
+
+    for (realm in Realms.list)
+    {
+        var flags = realm.flags
+
+        if (!realm.accepts(version))
+            flags = flags or REALM_FLAG_OFFLINE or REALM_FLAG_SPECIFY_BUILD
+
+        val specify_build = (flags and REALM_FLAG_SPECIFY_BUILD) != 0
+
+        val lock = !realm.accepts(user)
+
+        sbuf.put(realm.type.value)
+
+        if (version.major > 1)
+            sbuf.put(if (lock) 1.b else 0.b)
+
+        sbuf.put(flags.b)
+        sbuf.put(realm.display_name(specify_build).utf8)
+        sbuf.put(0) // null terminator
+        sbuf.put(realm.ip_string.utf8)
+        sbuf.put(0) // null terminator
+        sbuf.putFloat(realm.population_level)
+        sbuf.put(character_counts[realm.id]?.b ?: 0) // 0 if realm came online in the meantime
+        sbuf.put(realm.timezone.b)
+
+        if (version.major > 1)
+            sbuf.put(realm.id.b)
+        else
+            sbuf.put(0) // ??
+
+        if (version.major > 1 && specify_build) {
+            sbuf.put(version.major.b)
+            sbuf.put(version.minor.b)
+            sbuf.put(version.bugfix.b)
+            sbuf.putShort(version.build.s)
+        }
+    }
+
+    // footer
+    if (version.major > 1) {
+        sbuf.put(16)
+        sbuf.put(0)
+    } else {
+        sbuf.put(0)
+        sbuf.put(2)
+    }
+
+    sbuf.putShort(1, (sbuf.position() - 3).s) // set size
+
+    // set number of realms
+    if (version.major > 1)
+        sbuf.putShort (5, Realms.list.size.s)
+    else
+        sbuf.putInt   (5, Realms.list.size)
+
+    write {
+        // TODO what do we do next?
+        sbuf = old_sbuf
+        trace_auth("sent realm list")
         receive_packet()
     }
 }
