@@ -1,7 +1,7 @@
 package algalon.database
-import algalon.auth.Realm
-import algalon.auth.crypto.private_key
-import algalon.auth.crypto.user_verifier
+import algalon.logon.Realm
+import algalon.logon.crypto.private_key
+import algalon.logon.crypto.user_verifier
 import algalon.utils.BigUnsigned
 import algalon.utils.uppercase_ascii
 import algalon.utils.RANDOM

@@ -1,9 +1,9 @@
-package algalon.auth.server
-import algalon.auth.*
-import algalon.auth.crypto.*
-import algalon.auth.err.*
-import algalon.auth.op.*
-import algalon.auth.server.Session.Status.*
+package algalon.logon.server
+import algalon.logon.*
+import algalon.logon.crypto.*
+import algalon.logon.err.*
+import algalon.logon.op.*
+import algalon.logon.server.Session.Status.*
 import algalon.database.User
 import algalon.database.Users
 import algalon.settings.*

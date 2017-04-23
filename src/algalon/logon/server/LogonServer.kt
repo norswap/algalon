@@ -1,4 +1,4 @@
-package algalon.auth.server
+package algalon.logon.server
 import algalon.settings.*
 import org.pmw.tinylog.Logger
 import algalon.utils.net.*

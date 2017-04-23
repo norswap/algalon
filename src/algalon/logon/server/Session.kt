@@ -1,7 +1,7 @@
-package algalon.auth.server
+package algalon.logon.server
 import algalon.utils.BigUnsigned
-import algalon.auth.Version
-import algalon.auth.server.Session.Status.*
+import algalon.logon.Version
+import algalon.logon.server.Session.Status.*
 import algalon.database.ChilledSessions
 import algalon.database.User
 import algalon.utils.HasStateString

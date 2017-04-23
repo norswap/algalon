@@ -1,7 +1,7 @@
 @file:Suppress("PackageDirectoryMismatch")
 package algalon.settings
 import algalon.Clock
-import algalon.auth.known_versions
+import algalon.logon.known_versions
 import java.net.InetSocketAddress
 
 // -------------------------------------------------------------------------------------------------

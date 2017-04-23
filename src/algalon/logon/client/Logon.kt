@@ -1,7 +1,7 @@
-package algalon.auth.client
-import algalon.auth.crypto.*
-import algalon.auth.err.*
-import algalon.auth.op.*
+package algalon.logon.client
+import algalon.logon.crypto.*
+import algalon.logon.err.*
+import algalon.logon.op.*
 import algalon.settings.TRACE_AUTH
 import algalon.utils.*
 import algalon.utils.net.*

@@ -1,7 +1,7 @@
 package algalon
-import algalon.auth.version
-import algalon.auth.Version
-import algalon.auth.client.Session
+import algalon.logon.version
+import algalon.logon.Version
+import algalon.logon.client.Session
 import algalon.settings.*
 import algalon.utils.reverse_array
 import algalon.utils.uppercase_ascii

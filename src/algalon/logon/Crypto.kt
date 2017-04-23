@@ -1,5 +1,5 @@
 @file:Suppress("PackageDirectoryMismatch")
-package algalon.auth.crypto
+package algalon.logon.crypto
 import algalon.utils.BigUnsigned
 import algalon.utils.SHA1
 import algalon.utils.digest
@@ -43,8 +43,8 @@ fun private_key (name_utf8: ByteArray, pass_utf8: ByteArray, salt: ByteArray): B
 
 fun user_verifier (
     private_key: BigUnsigned,
-    g: BigUnsigned = algalon.auth.crypto.g,
-    N: BigUnsigned = algalon.auth.crypto.N)
+    g: BigUnsigned = algalon.logon.crypto.g,
+    N: BigUnsigned = algalon.logon.crypto.N)
 : BigUnsigned
     = g.exp_mod(private_key, N)
 

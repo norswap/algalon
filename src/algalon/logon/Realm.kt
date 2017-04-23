@@ -1,4 +1,4 @@
-package algalon.auth
+package algalon.logon
 import algalon.database.User
 
 class Realm private constructor ()

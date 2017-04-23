@@ -1,4 +1,4 @@
-package algalon.auth.client
+package algalon.logon.client
 import algalon.Client
 import algalon.utils.BigUnsigned
 import algalon.utils.HasStateString

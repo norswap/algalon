@@ -1,7 +1,7 @@
 package algalon
-import algalon.auth.Realm
-import algalon.auth.server.LogonServer
-import algalon.auth.version
+import algalon.logon.Realm
+import algalon.logon.server.LogonServer
+import algalon.logon.version
 import algalon.database.ChilledSessions
 import algalon.database.Users
 import algalon.settings.*

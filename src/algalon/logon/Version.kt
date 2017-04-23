@@ -1,4 +1,4 @@
-package algalon.auth
+package algalon.logon
 import algalon.settings.ACCEPTED_BUILDS
 
 // =================================================================================================

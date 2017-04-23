@@ -1,6 +1,6 @@
 @file:Suppress("PackageDirectoryMismatch")
-package algalon.auth.op
-import algalon.auth.Version
+package algalon.logon.op
+import algalon.logon.Version
 import algalon.settings.MAX_USERNAME_LEN
 import algalon.utils.b
 
