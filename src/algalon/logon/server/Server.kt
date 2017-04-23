@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Accepts connection requests to the auth server.
  */
-class LogonServer(n_threads: Int = N_AUTH_THREADS)
+class Server (n_threads: Int = N_AUTH_THREADS)
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ class LogonServer(n_threads: Int = N_AUTH_THREADS)
         {
             try {
                 if (!shutdown) {
-                    thread_pool.execute { Session(this@LogonServer, socket).receive_packet() }
+                    thread_pool.execute { Session(this@Server, socket).receive_packet() }
                     accept_socket.accept(accept_socket, this)
                 }
                 else socket.close()

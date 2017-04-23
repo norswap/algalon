@@ -1,12 +1,12 @@
 package algalon
 import algalon.logon.Realm
-import algalon.logon.server.LogonServer
+import algalon.logon.server.Server as LogonServer
 import algalon.logon.version
 import algalon.database.ChilledSessions
 import algalon.database.Users
 import algalon.settings.*
 import algalon.utils.wait_forever
-import algalon.world.WorldServer
+import algalon.world.Server as WorldServer
 import org.pmw.tinylog.Configurator
 import org.pmw.tinylog.Level
 

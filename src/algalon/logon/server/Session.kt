@@ -14,7 +14,7 @@ import java.nio.ByteOrder.LITTLE_ENDIAN
 /**
  * Container for data related to an authentication attempt on the server side.
  */
-class Session (val server: LogonServer, val sock: Socket): HasStateString, SocketHook
+class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
 {
     // ---------------------------------------------------------------------------------------------
 

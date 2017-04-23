@@ -83,7 +83,7 @@ fun Session.rate_bookkeeping()
     // Establish more and you get a 100 seconds penality for each additional connection.
 
     val now = now
-    val info = server.rate_book.getOrPut(sock.host) { LogonServer.IPInfo(now, 10) }
+    val info = server.rate_book.getOrPut(sock.host) { Server.IPInfo(now, 10) }
     info.budget += now - info.timestamp - 1
     info.timestamp = now
     if (info.budget > 10) info.budget = 10 // disallow hoarding budget

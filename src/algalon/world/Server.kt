@@ -14,7 +14,7 @@ import java.util.concurrent.RejectedExecutionException
 /**
 * Accepts connection requests to the world server.
 */
-class WorldServer (n_threads: Int = N_WORLD_THREADS)
+class Server(n_threads: Int = N_WORLD_THREADS)
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ class WorldServer (n_threads: Int = N_WORLD_THREADS)
         {
             try {
                 if (!shutdown) {
-                    thread_pool.execute { Session(this@WorldServer, socket).receive_packet() }
+                    thread_pool.execute { Session(this@Server, socket).receive_packet() }
                     accept_socket.accept(accept_socket, this)
                 }
                 else socket.close()
