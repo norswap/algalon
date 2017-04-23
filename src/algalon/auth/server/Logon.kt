@@ -13,6 +13,7 @@ import kotlin.text.Charsets.UTF_8
 import org.pmw.tinylog.Logger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 
 // The famous secret Xi Chi fraternity handshake.
 
@@ -237,6 +238,7 @@ fun Session.handle_client_proof()
 
     trace_auth("A = $A")
 
+    val sha1 = MessageDigest.getInstance("SHA-1")
     val u = BigUnsigned(sha1.digest(A.bytes, B2.bytes))
     val S = (A * user.verifier.exp_mod(u, N)).exp_mod(b1, N)
     val K = session_key_hash(S)
@@ -318,6 +320,7 @@ fun Session.handle_reconnect_proof()
     val R2c = rbuf.big_unsigned(20)
     rbuf.skip(21) // unused R3 + number of keys
 
+    val sha1 = MessageDigest.getInstance("SHA-1")!!
     sha1.update(user.username.utf8)
     sha1.update(R1.bytes)
     sha1.update(random_challenge)

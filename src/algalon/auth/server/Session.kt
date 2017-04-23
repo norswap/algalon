@@ -10,7 +10,6 @@ import algalon.utils.net.Socket
 import algalon.utils.net.SocketHook
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
-import java.security.MessageDigest
 
 /**
  * Container for data related to an authentication attempt on the server side.
@@ -21,9 +20,6 @@ class Session (val server: LogonServer, val sock: Socket): HasStateString, Socke
 
     var sbuf: ByteBuffer = ByteBuffer.allocate(256)
     val rbuf: ByteBuffer = ByteBuffer.allocate(256)
-
-    // TODO make local
-    val sha1 by lazy { MessageDigest.getInstance("SHA-1")!! }
 
     init {
         server.count.incrementAndGet()
