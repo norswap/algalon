@@ -1,7 +1,7 @@
 @file:Suppress("PackageDirectoryMismatch")
 package algalon.utils.net
-import algalon.settings.*
 import algalon.utils.HasStateString
+import algalon.utils.now
 import algalon.utils.skip
 import org.pmw.tinylog.Logger
 import java.io.EOFException
@@ -12,6 +12,11 @@ import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
 import java.nio.channels.InterruptedByTimeoutException
 import java.util.concurrent.TimeUnit
+
+// -------------------------------------------------------------------------------------------------
+
+val NET_READ_TIMEOUT  = 10_000L
+val NET_WRITE_TIMEOUT = 10_000L
 
 // -------------------------------------------------------------------------------------------------
 
@@ -32,22 +37,12 @@ typealias Socket = AsynchronousSocketChannel
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Attachment can implement this interface to hook some operations.
+ * Attachments passed to [Socket] functions can implement this interface to hook some operations.
  */
 interface SocketHook
 {
     fun close_hook()
 }
-
-// -------------------------------------------------------------------------------------------------
-
-private fun <A> Socket.read_best_effort (buf: ByteBuffer, attachment: A, handler: SocketHandler<A>)
-    = read(buf, NET_READ_TIMEOUT, TimeUnit.SECONDS, attachment, handler)
-
-// -------------------------------------------------------------------------------------------------
-
-private fun <A> Socket.write_best_effort (buf: ByteBuffer, attachment: A, handler: SocketHandler<A>)
-    = write(buf, NET_WRITE_TIMEOUT, TimeUnit.SECONDS, attachment, handler)
 
 // -------------------------------------------------------------------------------------------------
 
@@ -67,11 +62,8 @@ private abstract class SocketHandler<A> (val socket: Socket): CompletionHandler<
         if (type == "connection failed")
             Logger.debug(exc)
 
-        cleanup(attachment)
+        socket.close(attachment)
     }
-
-    open fun cleanup (attachment: A)
-        = socket.close(attachment)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -80,6 +72,7 @@ private class ReadHandler<A> (
     var remaining: Int,
     socket: Socket,
     val buf: ByteBuffer,
+    val deadline: Long,
     val handler: () -> Unit)
     : SocketHandler<A>(socket)
 {
@@ -90,8 +83,13 @@ private class ReadHandler<A> (
 
         remaining -= result
 
-        if (remaining > 0)
-            socket.read_best_effort(buf, attachment, this)
+        if (remaining > 0) {
+            val timeout = deadline - now
+            if (timeout <= 0)
+                failed(InterruptedByTimeoutException(), attachment)
+            else
+                socket.read(buf, timeout, TimeUnit.MILLISECONDS, attachment, this)
+        }
         else {
             buf.limit(buf.position())
             buf.reset()
@@ -105,13 +103,19 @@ private class ReadHandler<A> (
 private class WriteHandler<A> (
     socket: Socket,
     val buf: ByteBuffer,
+    val deadline: Long,
     val handler: () -> Unit)
     : SocketHandler<A>(socket)
 {
     override fun completed (result: Int, attachment: A)
     {
-        if (buf.remaining() > 0)
-            socket.write_best_effort(buf, attachment, this)
+        if (buf.remaining() > 0) {
+            val timeout = deadline - now
+            if (timeout <= 0)
+                failed(InterruptedByTimeoutException(), attachment)
+            else
+                socket.write(buf, timeout, TimeUnit.MILLISECONDS, attachment, this)
+        }
         else {
             buf.clear()
             handler()
@@ -131,7 +135,12 @@ private class WriteHandler<A> (
  *   when the data becomes available.
  * - On error, close the channel and log the error.
  */
-fun <A> Socket.read (n: Int, buf: ByteBuffer, attachment: A, handler: () -> Unit)
+fun <A> Socket.read (
+        n: Int,
+        buf: ByteBuffer,
+        attachment: A,
+        timeout: Long = NET_READ_TIMEOUT,
+        handler: () -> Unit)
 {
     assert(n > 0)
     val r = buf.remaining()
@@ -154,8 +163,21 @@ fun <A> Socket.read (n: Int, buf: ByteBuffer, attachment: A, handler: () -> Unit
     buf.mark() // 0 (compacted) or p
     buf.skip(r)
 
-    read_best_effort(buf, attachment, ReadHandler(n - r, this, buf, handler))
+    val handlerw = ReadHandler<A>(n - r, this, buf, now + timeout, handler)
+    read(buf, timeout, TimeUnit.MILLISECONDS, attachment, handlerw)
 }
+
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * [read] overload, uses [NET_READ_TIMEOUT] as timeout value.
+ */
+fun <A> Socket.read (
+    n: Int,
+    buf: ByteBuffer,
+    attachment: A,
+    handler: () -> Unit)
+= read(n, buf, attachment, NET_READ_TIMEOUT, handler)
 
 // -------------------------------------------------------------------------------------------------
 
@@ -164,10 +186,24 @@ fun <A> Socket.read (n: Int, buf: ByteBuffer, attachment: A, handler: () -> Unit
  * When this occurs, call [handler] aftter calling [ByteBuffer.clear].
  * On error, close the channel and log the error.
  */
-fun <A> Socket.write (buf: ByteBuffer, attachment: A, handler: () -> Unit)
+fun <A> Socket.write (
+        buf: ByteBuffer,
+        attachment: A,
+        timeout: Long = NET_WRITE_TIMEOUT,
+        handler: () -> Unit)
 {
-    write_best_effort(buf, attachment, WriteHandler(this, buf, handler))
+    val handlerw = WriteHandler<A>(this, buf, timeout, handler)
+    write(buf, timeout, TimeUnit.MILLISECONDS, attachment, handlerw)
 }
+
+/**
+ * [write] overload. Uses [NET_WRITE_TIMEOUT] as timeout value.
+ */
+fun <A> Socket.write (
+    buf: ByteBuffer,
+    attachment: A,
+    handler: () -> Unit)
+= write(buf, attachment, NET_WRITE_TIMEOUT, handler)
 
 // -------------------------------------------------------------------------------------------------
 
@@ -182,9 +218,17 @@ fun <A> Socket.close (attachment: A)
 
 // -------------------------------------------------------------------------------------------------
 
+/**
+ * Returns the host string (ip or hostname, no IP -> hostname lookup) of the remote end of the socket.
+ */
 val Socket.host: String
     get() = (remoteAddress as InetSocketAddress).hostString
 
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Return the remote port of the socket.
+ */
 val Socket.port: Int
     get() = (remoteAddress as InetSocketAddress).port
 

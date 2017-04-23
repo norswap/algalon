@@ -18,12 +18,6 @@ val MAX_USERNAME_LEN = 16
 
 // -------------------------------------------------------------------------------------------------
 
-/** Timeout in seconds for net read operations. */
-val NET_READ_TIMEOUT = 10L
-
-/** Timeout injack seconds for net write operations. */
-val NET_WRITE_TIMEOUT = 10L
-
 /** Timeout in seconds for auth server shutdown. */
 val AUTH_SHUTDOWN_TIMEOUT = 20L
 
@@ -65,6 +59,7 @@ val CHILLED_SESSIONS_THAW_DELAY = Clock.minutes(10)
 // -------------------------------------------------------------------------------------------------
 
 /** Builds accepted by the authentication server. */
-val ACCEPTED_BUILDS = known_versions.filter { it.major == 1 }
+val ACCEPTED_BUILDS = known_versions
+//val ACCEPTED_BUILDS = known_versions.filter { it.major == 1 }
 
 // -------------------------------------------------------------------------------------------------

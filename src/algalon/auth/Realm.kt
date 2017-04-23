@@ -1,52 +1,21 @@
 package algalon.auth
 import algalon.database.User
 
-class Realm (
+class Realm private constructor ()
+{
+    // ---------------------------------------------------------------------------------------------
+
+    companion object {
+        var list = emptyList<Realm>()
+    }
 
     // ---------------------------------------------------------------------------------------------
 
-    /** Unique realm ID. */
-    val id: Int,
+    constructor (init: Realm.() -> Unit): this() {
+        init()
+    }
 
     // ---------------------------------------------------------------------------------------------
-
-    /** Displayed name of the realm. */
-    val name: String,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /** The IP address of this realm's server. */
-    val ip: String,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /** The port of this realm's server. */
-    val port: Int,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /**
-     * Client version this realm is intended for.
-     * Might change this in the future to allow multi-version realms.
-     */
-    val version: Version,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /** See RealmFlags.kt */
-    val flags: Int,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /** See RealmTimezones.kt */
-    val timezone: Int,
-
-    // ---------------------------------------------------------------------------------------------
-
-    /** Normal, PvP, ... */
-    val type: Type)
-
-{   // ---------------------------------------------------------------------------------------------
 
     /**
      * - Each realm is one of these types.
@@ -63,13 +32,112 @@ class Realm (
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Traditionally computed as `(num players / max players) * 2`.
-     * (Online players or accounts? Online player limit?)
-     * TODO: implement this
+     * Each realm can have multiple of these flags, which produce the indicated effect.
+     * The effects were only tested on the Vanilla client.
      *
-     * In the realm list in-game, the thresholds for low, medium, and high population are
-     * 0.5, 1.0, and 2.0 respectively.
+     * For the population field, the priority order is:
+     * OFFLINE > RECOMMENDED > NEW > FULL
+     *
+     * If FULL is overriden in this manner, it will not produce its warning effect.
      */
+    enum class Flag (val value: Int)
+    {
+        // Highlights server in red. Connection still possible.
+        VERSION_MISMATCH(0x01),
+
+        // Population: Offline. Connection impossible.
+        OFFLINE(0x02),
+
+        // Report required build (extensions only).
+        SPECIFY_BUILD(0x04),
+
+        // Population: Recommended. Picks the realms from the picker if it has the correct type.
+        RECOMMENDED(0x20),
+
+        // Population: new.
+        NEW(0x40),
+
+        // Population: full. Warns if trying to pick the realm.
+        FULL(0x80),
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Possible population levels: low, medium, or high ("full" is handled via a [Flag]).
+     */
+    enum class Population (val value: Float)
+    {
+        // In reality, low if < 1.0, high if > 1.0.
+        // Tested on Vanilla only.
+        LOW(0.0f),
+        MEDIUM(1.0f),
+        HIGH(2.0f)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** Unique realm ID. */
+    val id get() = _id
+    var _id = 0
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** Displayed name of the realm. */
+    val name get() = _name
+    lateinit var _name: String
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** The IP address of this realm's server. */
+    val ip get() = _ip
+    lateinit var _ip: String
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** The port of this realm's server. */
+    val port get() = _port
+    var _port = 0
+
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Client version this realm is intended for.
+     * Might change this in the future to allow multi-version realms.
+     */
+    val version get() = _version
+    lateinit var _version: Version
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** See [Realm.Flag] */
+    val flags get() = _flags
+    var _flags: List<Flag> = emptyList()
+
+    // ---------------------------------------------------------------------------------------------
+
+    val flags_value = -1
+        get() = if (field >= 0) field
+        else flags.fold(0) { sum, it -> sum + it.value }.also { field = it }
+
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * - Represent the server's time zone (these are values out of an enum).
+     * - 0 for cross-realms, we hard-code this value here.
+     * - Could be used to exclude some localized clients (see Packets.txt).
+     */
+    val timezone = 0
+
+    // ---------------------------------------------------------------------------------------------
+
+    /** Normal, PvP, ... */
+    val type get() = _type
+    lateinit var _type: Type
+
+    // ---------------------------------------------------------------------------------------------
+
+    // TODO implement
     var population_level: Float = 0f
 
     // ---------------------------------------------------------------------------------------------
@@ -84,7 +152,7 @@ class Realm (
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Whether the realm accepts connections from the given account.
+     * Whether the realm appears locked to the given user (v2+).
      */
     fun accepts (user: User): Boolean {
         return true
@@ -105,8 +173,12 @@ class Realm (
 
     // ---------------------------------------------------------------------------------------------
 
-    val ip_string
-        = "$ip:$port"
+    /**
+     * "<ip>:<port>"
+     */
+    val ip_string get() = _ip_string!!
+    val _ip_string: String? = null
+        get() = field ?: "$ip:$port".also { field = it }
 
     // ---------------------------------------------------------------------------------------------
 }

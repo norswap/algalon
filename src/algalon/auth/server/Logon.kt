@@ -19,17 +19,17 @@ import java.nio.ByteOrder
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
 
-private fun Session.read (read: Int, callback: () -> Unit)
+private fun Session.read (read: Int, timeout: Long = NET_READ_TIMEOUT, callback: () -> Unit)
 {
-    sock.read(read, rbuf, this, callback)
+    sock.read(read, rbuf, this, timeout, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
 
-private fun Session.write (callback: () -> Unit)
+private fun Session.write (timeout: Long = NET_WRITE_TIMEOUT, callback: () -> Unit)
 {
     sbuf.flip()
-    sock.write(sbuf, this, callback)
+    sock.write(sbuf, this, timeout, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -94,8 +94,8 @@ fun Session.rate_bookkeeping()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun Session.receive_packet()
-    = read(1) {
+fun Session.receive_packet (timeout: Long = NET_READ_TIMEOUT)
+    = read(1, timeout) {
         val opcode = rbuf.get()
         trace_auth("opcode = $opcode")
         when (opcode) {
@@ -232,7 +232,6 @@ fun Session.handle_client_proof()
     val M1c = rbuf.big_unsigned(20)
     rbuf.skip(22) // crc_hash, number of keys & security flags
 
-
     if ((A % N).is_zero)
         return die("zero SRP6 (A % N) value: {}")
 
@@ -352,43 +351,45 @@ fun Session.handle_realmlist()
         return die("out of order realm list request: {}")
 
     rbuf.skip(4) // unknown
-    // TODO hold on to persistent realmlist, include it here
-    Users.get_character_counts(user) { send_realmlist(it) }
+    Users.with_realms(user, this::send_realmlist)
 }
 
 // -------------------------------------------------------------------------------------------------
 
-fun Session.send_realmlist (character_counts: Map<Int, Int>)
+fun Session.send_realmlist (realms: List<Realm>, character_counts: Map<Int, Int>)
 {
-    val realms = Realms.list
-
-    val MAX_FIXED_SIZE = 15
-    val FOOTER_SIZE = 2
-    val MAX_NAME_SIZE = 256 // TODO lower? -> test
-
     val old_sbuf = sbuf
-    sbuf = ByteBuffer.allocate(realms.size * (MAX_NAME_SIZE + MAX_FIXED_SIZE) + FOOTER_SIZE)
+    val buf_size = SREALM_LIST_MAX_FIXED_LENGTH + realms.size * SREALM_LIST_MAX_RECORD_LENGTH
+    sbuf = ByteBuffer.allocate(buf_size)
     sbuf.order(ByteOrder.LITTLE_ENDIAN)
 
     sbuf.put(REALM_LIST)
     sbuf.putShort(0) // placeholder for packet size
-    sbuf.skip(if (version.major > 1) 6 else 8) // placeholder
+    sbuf.putInt(0)   // unknown
 
-    for (realm in Realms.list)
+    if (version.major > 1)
+        sbuf.putShort(realms.size.s)
+    else
+        sbuf.put(realms.size.b)
+
+    for (realm in realms)
     {
-        var flags = realm.flags
+        var flags = realm.flags_value
 
-        if (!realm.accepts(version))
-            flags = flags or REALM_FLAG_OFFLINE or REALM_FLAG_SPECIFY_BUILD
+        if (!realm.accepts(version)) {
+            flags += Realm.Flag.OFFLINE.value
+            flags += Realm.Flag.SPECIFY_BUILD.value
+        }
 
-        val specify_build = (flags and REALM_FLAG_SPECIFY_BUILD) != 0
+        val specify_build = (flags and Realm.Flag.SPECIFY_BUILD.value) != 0
 
-        val lock = !realm.accepts(user)
-
-        sbuf.put(realm.type.value)
-
-        if (version.major > 1)
-            sbuf.put(if (lock) 1.b else 0.b)
+        if (version.major > 1) {
+            sbuf.put(realm.type.value)
+            sbuf.put(if (realm.accepts(user)) 0.b else 1.b)
+        }
+        else {
+            sbuf.putInt(realm.type.value.i)
+        }
 
         sbuf.put(flags.b)
         sbuf.put(realm.display_name(specify_build).utf8)
@@ -396,13 +397,9 @@ fun Session.send_realmlist (character_counts: Map<Int, Int>)
         sbuf.put(realm.ip_string.utf8)
         sbuf.put(0) // null terminator
         sbuf.putFloat(realm.population_level)
-        sbuf.put(character_counts[realm.id]?.b ?: 0) // 0 if realm came online in the meantime
+        sbuf.put(character_counts[realm.id]!!.b)
         sbuf.put(realm.timezone.b)
-
-        if (version.major > 1)
-            sbuf.put(realm.id.b)
-        else
-            sbuf.put(0) // ??
+        sbuf.put(realm.id.b)
 
         if (version.major > 1 && specify_build) {
             sbuf.put(version.major.b)
@@ -412,28 +409,13 @@ fun Session.send_realmlist (character_counts: Map<Int, Int>)
         }
     }
 
-    // footer
-    if (version.major > 1) {
-        sbuf.put(16)
-        sbuf.put(0)
-    } else {
-        sbuf.put(0)
-        sbuf.put(2)
-    }
-
-    sbuf.putShort(1, (sbuf.position() - 3).s) // set size
-
-    // set number of realms
-    if (version.major > 1)
-        sbuf.putShort (5, Realms.list.size.s)
-    else
-        sbuf.putInt   (5, Realms.list.size)
+    sbuf.putShort(16) // footer (unknown)
+    sbuf.putShort(1, (sbuf.position() - 3).s) // set packet size
 
     write {
-        // TODO what do we do next?
         sbuf = old_sbuf
         trace_auth("sent realm list")
-        receive_packet()
+        receive_packet(60_000) // 1 min
     }
 }
 

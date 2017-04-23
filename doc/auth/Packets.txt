@@ -220,25 +220,114 @@ Header:
 
 000     opcode (16) [1]
 001     size of rest of packet (total - 3) [2]
-003     unknown [4]
-007     number of realms [4/2]
----     [8]
+003     unknown (0) [4]
+007     number of realms [1/2]
+---     [8/9]
 
 Realm Record:
 
-000     type [4]
-004     flags [1]
-005     name [?]
+...     type [4/1]
+...     lock [0/1]
+...     flags [1]
+...     name [?]
 ...     address ("<ip>:<port>") [?]
-...     population [TODO]
-...     num chars [1]
-...     time_zone [1] [???]
-...     unknown [1]
----
+...     population [4]
+...     num characters [1]
+...     time_zone [1]
+...     realm ID [1]
+---     [12/10 + ???]
 
 Footer:
 
-000     unknown [2]
+000     unknown (16) [2]
 ---     [2]
+
+Where present, the slash (/) distinguishes between the Vanilla / Extension sizes.
+
+The type of the realm is Normal, PvP, RP, ... (see `Realm.Type`). This is called
+"icon" in AscEmu. (Maybe because an icon is shown in extensions?)
+
+Flags are documented in the Realm.Flag enumeration.
+
+"lock" locks the realm (cannot be accessed) in extensions.
+In Vanilla, the offline flag should be used to that effect instead.
+
+The display size for the server name is 22 characters on Vanilla. Needs to be tested
+on other servers.
+
+The population is a float. On Vanilla, it shows low for < 1.0, medium for == 1.0, high for > 1.0.
+Ascemu reports that the threshold is 1.6.
+
+"num characters" is the number of characters the player has on the server.
+
+"time zone" is the realm's time zone.
+
+The mangos zero documentation gives this list of values:
+
+1: United States
+2: Korea
+3: English
+3: German
+3: French
+4: Taiwan
+5: China
+99: Test Server
+101: QA Server
+
+Trinity 3.3.5 gives the following list:
+
+1: Development
+2: United States
+3: Oceanic
+4: Latin America
+5: Tournament
+6: Korea
+7: Tournament
+8: English
+9: German
+10: French
+11: Spanish
+12: Russian
+13: Tournament
+14: Taiwan
+15: Tournament
+16: China
+17: CN1
+18: CN2
+19: CN3
+20: CN4
+21: CN5
+22: CN6
+23: CN7
+24: CN8
+25: Tournament
+26: Test Server
+27: Tournament
+28: QA Server
+29 CN9
+
+So it's probably version-dependent. My Vanilla US client allows me to connect
+only on 0 and 1. Seems like 0 should be the preferred value on vanilla.
+
+The ID identifies the realm. Many server send 0 for Vanilla, but my client seems to accept
+any value (even if presumably it does not use it).
+
+Mangos sends 0 for all extensions and says the value is unknown (but might be the ID).
+
+The footer is 16 (little-endian) on mangos for all version. Ascemu sends 23, while trinity sends
+(0, 2) for vanilla and 16 for other versions. In my test, all three seem to work with the
+vanilla client.
+
+---
+
+Normally, the connection to the auth server stays established while the client
+is logged to the world. It's also possible to disconnect the client, as the
+reconnect protocol ensures that no re-entry of credentials is necessary.
+
+I opted to implement a timeout of one minute after sending the realm list.
+
+When displaying the realm list selection screen on vanilla, a realm list request is sent
+regularly to the server to refresh the list), so the timeout effectively starts
+when consulting the character selection screen.
 
 -------------------------------------------------------------------------------

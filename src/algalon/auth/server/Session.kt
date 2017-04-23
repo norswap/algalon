@@ -15,15 +15,15 @@ import java.security.MessageDigest
 /**
  * Container for data related to an authentication attempt on the server side.
  */
-class Session(val server: LogonServer, val sock: Socket): HasStateString, SocketHook
+class Session (val server: LogonServer, val sock: Socket): HasStateString, SocketHook
 {
     // ---------------------------------------------------------------------------------------------
 
     var sbuf: ByteBuffer = ByteBuffer.allocate(256)
     val rbuf: ByteBuffer = ByteBuffer.allocate(256)
 
-    // NOTE: if this is only ever used in a single callback, make local
-    val sha1 by lazy { MessageDigest.getInstance("SHA-1") }
+    // TODO make local
+    val sha1 by lazy { MessageDigest.getInstance("SHA-1")!! }
 
     init {
         server.count.incrementAndGet()

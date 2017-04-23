@@ -1,5 +1,5 @@
 package algalon.database
-import algalon.auth.Realms
+import algalon.auth.Realm
 import algalon.auth.crypto.private_key
 import algalon.auth.crypto.user_verifier
 import algalon.utils.BigUnsigned
@@ -50,10 +50,11 @@ object Users
 
     // ---------------------------------------------------------------------------------------------
 
-    fun get_character_counts (user: User, handler: (Map<Int, Int>) -> Unit)
+    fun with_realms (user: User, handler: (List<Realm>, Map<Int, Int>) -> Unit)
     {
         // stubby
-        handler(Realms.list.associate { it.id to 0 })
+        val realms = Realm.list
+        handler(realms, realms.associate { it.id to 0 })
     }
 }
 

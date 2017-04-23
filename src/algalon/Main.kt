@@ -1,6 +1,5 @@
 package algalon
 import algalon.auth.Realm
-import algalon.auth.Realms
 import algalon.auth.server.LogonServer
 import algalon.auth.version
 import algalon.database.ChilledSessions
@@ -28,12 +27,21 @@ fun main (args: Array<String>)
     val world_server = WorldServer()
     val client = Client("jack", "jack")
     val addr = WORLD_SERVER_ADDR.hostString
-    println(addr)
-    val realm = Realm(0, "Alagalon", "127.0.0.1", WORLD_LISTEN_PORT, version(1, 12, 1), 0, 0, Realm.Type.Normal)
-    Realms.list.add(realm)
+
+    val realm = Realm {
+        _id = 7
+        _name = "Algalon"
+        _ip = "127.0.0.1"
+        _port = WORLD_LISTEN_PORT
+        _version = version(1, 12, 1)
+        //_version = version(3, 3, 5)
+        _type = Realm.Type.Normal
+    }
+
+    Realm.list += realm
 
     logon_server.start()
     world_server.start()
-    client.start()
+    //client.start()
     wait_forever()
 }
