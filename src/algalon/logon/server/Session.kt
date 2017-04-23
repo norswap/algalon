@@ -4,8 +4,8 @@ import algalon.logon.Version
 import algalon.logon.server.Session.Status.*
 import algalon.database.ChilledSessions
 import algalon.database.User
+import algalon.logon.Opcode
 import algalon.utils.HasStateString
-import algalon.utils.b
 import algalon.utils.net.Socket
 import algalon.utils.net.SocketHook
 import java.nio.ByteBuffer
@@ -59,7 +59,7 @@ class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
 
     var len = 0
     var username_len = 0
-    var challenge_opcode = 0.b
+    var challenge_opcode = Opcode.LOGON_CHALLENGE
     lateinit var b1: BigUnsigned
     lateinit var B2: BigUnsigned
     lateinit var random_challenge: ByteArray

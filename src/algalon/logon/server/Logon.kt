@@ -1,8 +1,12 @@
+@file:Suppress("NON_EXHAUSTIVE_WHEN")
 package algalon.logon.server
 import algalon.logon.*
 import algalon.logon.crypto.*
-import algalon.logon.err.*
-import algalon.logon.op.*
+import algalon.logon.lengths.*
+import algalon.logon.Opcode
+import algalon.logon.Opcode.*
+import algalon.logon.Errcode
+import algalon.logon.Errcode.*
 import algalon.logon.server.Session.Status.*
 import algalon.database.User
 import algalon.database.Users
@@ -52,20 +56,20 @@ private inline fun Session.trace_auth (msg: String)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun Session.write_error (opcode: Byte, errcode: Byte)
+fun Session.write_error (opcode: Opcode, errcode: Errcode)
 {
     when (opcode) {
-        LOGON_CHALLENGE ->
-            sbuf.put(opcode, 0, errcode)
+        Opcode.LOGON_CHALLENGE ->
+            sbuf.put(opcode.b, 0, errcode.b)
         LOGON_PROOF ->
             if (version.build > 6005) // > 1.12.2
                 // 1.12.3 (chinese client patch) or extensions
                 // (not verified on 1.12.3)
-                sbuf.put(opcode, errcode, 3, 0)
+                sbuf.put(opcode.b, errcode.b, 3, 0)
             else
-                sbuf.put(opcode, errcode)
+                sbuf.put(opcode.b, errcode.b)
         RECONNECT_CHALLENGE ->
-            sbuf.put(opcode, errcode)
+            sbuf.put(opcode.b, errcode.b)
     }
 
     // NOTE: Whenever we send an error, the Vanilla client closes the connection.
@@ -100,29 +104,29 @@ fun Session.receive_packet (timeout: Long = NET_READ_TIMEOUT)
         val opcode = rbuf.get()
         trace_auth("opcode = $opcode")
         when (opcode) {
-            LOGON_CHALLENGE -> {
+            LOGON_CHALLENGE.b -> {
                 rate_bookkeeping()
                 read(CLOGON_CHALLENGE_FIX_LENGTH - 1) {
                     trace_auth("received client challenge")
-                    challenge_opcode = opcode
+                    challenge_opcode = LOGON_CHALLENGE
                     handle_client_challenge()
                 }
             }
-            LOGON_PROOF -> {
+            LOGON_PROOF.b -> {
                 read (CLOGON_PROOF_LENGTH - 1) { handle_client_proof() }
             }
-            RECONNECT_CHALLENGE -> {
+            RECONNECT_CHALLENGE.b -> {
                 rate_bookkeeping()
                 read (CRECONNECT_CHALLENGE_FIX_LENGTH - 1) {
                     trace_auth("received client reconnect challenge")
-                    challenge_opcode = opcode
+                    challenge_opcode = RECONNECT_CHALLENGE
                     handle_client_challenge()
                 }
             }
-            RECONNECT_PROOF -> {
+            RECONNECT_PROOF.b -> {
                 read (CRECONNECT_PROOF_LENGTH - 1) { handle_reconnect_proof() }
             }
-            REALM_LIST -> {
+            REALM_LIST.b -> {
                 read (CREALM_LIST_REQUEST_LENGTH - 1) { handle_realmlist() }
             }
             else -> {
@@ -201,9 +205,9 @@ fun Session.handle_user (user: User?)
     random_challenge = RANDOM.bytes(16)
 
 
-    sbuf.put(LOGON_CHALLENGE) // opcode
+    sbuf.put(LOGON_CHALLENGE.b) // opcode
     sbuf.put(0) // unknown
-    sbuf.put(AUTH_SUCCESS) // error
+    sbuf.put(AUTH_SUCCESS.b) // error
     sbuf.put(B2.bytes(32))
     sbuf.put(1)  // g length
     sbuf.put(g.bytes) // g
@@ -259,10 +263,10 @@ fun Session.handle_client_proof()
 
     // NOTE: packet format differs in 2.x and 3.x
     sbuf.put(LOGON_PROOF) // opcode
-    sbuf.put(AUTH_SUCCESS)
+    sbuf.put(AUTH_SUCCESS.b)
     sbuf.put(M2)
     if (version.major > 1) {
-        sbuf.putInt(ACCOUNT_FLAG_PROPASS)
+        sbuf.putInt(AccountFlags.NONE.value)
         sbuf.putInt(0) // survey id
         sbuf.putInt(0) // unknown flags
     }
@@ -296,7 +300,7 @@ fun Session.handle_user_reconnect (user: User?)
     random_challenge = RANDOM.bytes(16)
 
     sbuf.put(RECONNECT_CHALLENGE) // opcode
-    sbuf.put(AUTH_SUCCESS) // error
+    sbuf.put(AUTH_SUCCESS.b) // error
     sbuf.put(random_challenge)
     sbuf.put(ByteArray(16)) // zeroed
 
@@ -335,7 +339,7 @@ fun Session.handle_reconnect_proof()
         return die("invalid reconnect logon proof: {}")
 
     sbuf.put(RECONNECT_PROOF) // opcode
-    sbuf.put(AUTH_SUCCESS) // error
+    sbuf.put(AUTH_SUCCESS.b) // error
     if (version.major > 1)
         sbuf.putShort(0) // unknown
 

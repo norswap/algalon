@@ -1,27 +1,13 @@
 @file:Suppress("PackageDirectoryMismatch")
-package algalon.logon.op
+package algalon.logon.lengths
 import algalon.logon.Version
 import algalon.settings.MAX_USERNAME_LEN
-import algalon.utils.b
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Opcodes
+// -------------------------------------------------------------------------------------------------
 
-val LOGON_CHALLENGE     = 0.b
-val LOGON_PROOF         = 1.b
-val RECONNECT_CHALLENGE = 2.b
-val RECONNECT_PROOF     = 3.b
-val REALM_LIST          = 16.b
+// Constants that define the lengths of logon packets or logon packet parts.
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Account Flags
-
-val ACCOUNT_FLAG_GM         = 0x00000001
-val ACCOUNT_FLAG_TRIAL      = 0x00000008
-val ACCOUNT_FLAG_PROPASS    = 0x00800000
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Packet Lengths
+// -------------------------------------------------------------------------------------------------
 
 val CLOGON_CHALLENGE_FIX_LENGTH         = 34
 val CLOGON_CHALLENGE_MAX_LENGTH         = CLOGON_CHALLENGE_FIX_LENGTH + MAX_USERNAME_LEN
@@ -76,7 +62,3 @@ val SREALM_LIST_MAX_FIXED_LENGTH        = 22
 val SREALM_LIST_MAX_RECORD_LENGTH       = 128
 
 // -------------------------------------------------------------------------------------------------
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////

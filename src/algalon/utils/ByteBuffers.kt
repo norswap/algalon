@@ -1,4 +1,5 @@
 package algalon.utils
+import algalon.logon.Opcode
 import java.nio.ByteBuffer
 
 // -------------------------------------------------------------------------------------------------
@@ -72,6 +73,13 @@ fun ByteBuffer.big_unsigned (size: Int): BigUnsigned
 fun ByteBuffer.put (vararg bytes: Byte)
 {
     put(bytes)
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fun ByteBuffer.put (opcode: Opcode)
+{
+    put(opcode.b)
 }
 
 // -------------------------------------------------------------------------------------------------

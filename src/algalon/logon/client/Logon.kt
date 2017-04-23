@@ -1,11 +1,16 @@
+@file:Suppress("NON_EXHAUSTIVE_WHEN")
 package algalon.logon.client
 import algalon.logon.crypto.*
-import algalon.logon.err.*
-import algalon.logon.op.*
+import algalon.logon.lengths.*
+import algalon.logon.Opcode
+import algalon.logon.Opcode.*
+import algalon.logon.Errcode
+import algalon.logon.Errcode.*
 import algalon.settings.TRACE_AUTH
 import algalon.utils.*
 import algalon.utils.net.*
 import org.pmw.tinylog.Logger
+import java.nio.ByteBuffer
 
 // The famous secret Xi Chi fraternity handshake.
 
@@ -26,9 +31,9 @@ fun Session.write (callback: () -> Unit)
 
 // -------------------------------------------------------------------------------------------------
 
-fun Session.wrong_opcode(expect: Byte): Boolean
+fun Session.wrong_opcode(expect: Opcode): Boolean
 {
-    if (rbuf.byte == expect.i) return false
+    if (rbuf.byte == expect.b.i) return false
     Logger.info("wrong opcode: {}", this)
     socket.close()
     return true
@@ -38,9 +43,9 @@ fun Session.wrong_opcode(expect: Byte): Boolean
 
 fun Session.auth_failure(msg: String): Boolean
 {
-    val err = rbuf.byte
-    if (err == AUTH_SUCCESS.i) return false
-    Logger.info(msg, errcode_name(err))
+    val err = rbuf.get()
+    if (err == AUTH_SUCCESS.b) return false
+    Logger.info(msg, Errcode.name(err))
     socket.close()
     return true
 }
@@ -51,6 +56,11 @@ fun Session.auth_failure(msg: String): Boolean
 private inline fun Session.trace_auth (msg: String) {
     if (TRACE_AUTH) Logger.trace("[$this] $msg")
 }
+
+// -------------------------------------------------------------------------------------------------
+
+private fun ByteBuffer.put (opcode: Opcode)
+    = put(opcode.b)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -86,9 +96,9 @@ fun Session.send_challenge()
         trace_auth("sent client challenge")
         when (challenge_opcode) {
             LOGON_CHALLENGE
-                -> read (SLOGON_CHALLENGE_MIN_LENGTH)       { receive_server_challenge() }
+                -> read (SLOGON_CHALLENGE_MIN_LENGTH)  { receive_server_challenge() }
             RECONNECT_CHALLENGE
-                -> read (SRECONNECT_CHALLENGE_MIN_LENGTH)   { receive_reconnect_challenge() }
+                -> read (SLOGON_CHALLENGE_MIN_LENGTH)  { receive_server_challenge() }
         }
     }
 }

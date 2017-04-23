@@ -1,8 +1,8 @@
 package algalon.logon.client
 import algalon.Client
+import algalon.logon.Opcode
 import algalon.utils.BigUnsigned
 import algalon.utils.HasStateString
-import algalon.utils.b
 import algalon.utils.net.Socket
 import org.pmw.tinylog.Logger
 import java.net.InetSocketAddress
@@ -41,7 +41,7 @@ class Session(val client: Client): HasStateString
     lateinit var A: BigUnsigned
     lateinit var M1: BigUnsigned
     lateinit var K: BigUnsigned
-    var challenge_opcode = 0.b
+    var challenge_opcode = Opcode.LOGON_CHALLENGE
 
     // ---------------------------------------------------------------------------------------------
 
