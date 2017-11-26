@@ -1,5 +1,4 @@
 package algalon.utils
-import algalon.logon.Opcode
 import java.nio.ByteBuffer
 
 // -------------------------------------------------------------------------------------------------
@@ -7,7 +6,7 @@ import java.nio.ByteBuffer
 /**
  * Returns an array containing the [n] next bytes from the buffer.
  */
-fun ByteBuffer.bytes(n: Int): ByteArray
+fun ByteBuffer.bytes (n: Int): ByteArray
 {
     val result = ByteArray(n)
     get(result)
@@ -70,16 +69,12 @@ fun ByteBuffer.big_unsigned (size: Int): BigUnsigned
 
 // -------------------------------------------------------------------------------------------------
 
+/**
+ * See [ByteBuffer.put].
+ */
 fun ByteBuffer.put (vararg bytes: Byte)
 {
     put(bytes)
-}
-
-// -------------------------------------------------------------------------------------------------
-
-fun ByteBuffer.put (opcode: Opcode)
-{
-    put(opcode.b)
 }
 
 // -------------------------------------------------------------------------------------------------

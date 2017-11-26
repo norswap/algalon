@@ -1,78 +1,19 @@
-package algalon.logon
-import algalon.database.User
+package algalon.logon.realm
+import algalon.database.Account
+import algalon.logon.Version
 
-class Realm private constructor ()
+class RealmOld private constructor ()
 {
     // ---------------------------------------------------------------------------------------------
 
     companion object {
-        var list = emptyList<Realm>()
+        var list = emptyList<RealmOld>()
     }
 
     // ---------------------------------------------------------------------------------------------
 
-    constructor (init: Realm.() -> Unit): this() {
+    constructor (init: RealmOld.() -> Unit): this() {
         init()
-    }
-
-    // ---------------------------------------------------------------------------------------------
-
-    /**
-     * - Each realm is one of these types.
-     * - These values appear on the second column of the `Cfg_Configs.dbc` client file.
-     * - The effect or other values (or whether they are used) is unknown.
-     */
-    enum class Type (val value: Byte) {
-        Normal(0),  // Normal Realm (no PvP in neutral zones)
-        PvP(1),     // PvP Realm (PvP in neutral zones)
-        RP(6),      // RP Normal Realm
-        RP_PvP(8)   // RP PvP Realm
-    }
-
-    // ---------------------------------------------------------------------------------------------
-
-    /**
-     * Each realm can have multiple of these flags, which produce the indicated effect.
-     * The effects were only tested on the Vanilla client.
-     *
-     * For the population field, the priority order is:
-     * OFFLINE > RECOMMENDED > NEW > FULL
-     *
-     * If FULL is overriden in this manner, it will not produce its warning effect.
-     */
-    enum class Flag (val value: Int)
-    {
-        // Highlights server in red. Connection still possible.
-        VERSION_MISMATCH(0x01),
-
-        // Population: Offline. Connection impossible.
-        OFFLINE(0x02),
-
-        // Report required build (extensions only).
-        SPECIFY_BUILD(0x04),
-
-        // Population: Recommended. Picks the realms from the picker if it has the correct type.
-        RECOMMENDED(0x20),
-
-        // Population: new.
-        NEW(0x40),
-
-        // Population: full. Warns if trying to pick the realm.
-        FULL(0x80),
-    }
-
-    // ---------------------------------------------------------------------------------------------
-
-    /**
-     * Possible population levels: low, medium, or high ("full" is handled via a [Flag]).
-     */
-    enum class Population (val value: Float)
-    {
-        // In reality, low if < 1.0, high if > 1.0.
-        // Tested on Vanilla only.
-        LOW(0.0f),
-        MEDIUM(1.0f),
-        HIGH(2.0f)
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -110,9 +51,9 @@ class Realm private constructor ()
 
     // ---------------------------------------------------------------------------------------------
 
-    /** See [Realm.Flag] */
+    /** See [RealmOld.RealmFlag] */
     val flags get() = _flags
-    var _flags: List<Flag> = emptyList()
+    var _flags: List<RealmFlag> = emptyList()
 
     // ---------------------------------------------------------------------------------------------
 
@@ -133,7 +74,7 @@ class Realm private constructor ()
 
     /** Normal, PvP, ... */
     val type get() = _type
-    lateinit var _type: Type
+    lateinit var _type: RealmType
 
     // ---------------------------------------------------------------------------------------------
 
@@ -154,7 +95,7 @@ class Realm private constructor ()
     /**
      * Whether the realm appears locked to the given user (v2+).
      */
-    fun accepts (user: User): Boolean {
+    fun accepts (account: Account): Boolean {
         return true
     }
 

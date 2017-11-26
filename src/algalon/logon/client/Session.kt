@@ -1,8 +1,7 @@
 package algalon.logon.client
-import algalon.Client
+import algalon.client.Client
 import algalon.logon.Opcode
 import algalon.utils.BigUnsigned
-import algalon.utils.HasStateString
 import algalon.utils.net.Socket
 import org.pmw.tinylog.Logger
 import java.net.InetSocketAddress
@@ -14,7 +13,7 @@ import java.util.concurrent.CompletableFuture
 /**
  * Container for data related to an authentication attempt on the client side.
  */
-class Session(val client: Client): HasStateString
+class Session (val client: Client)
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -26,6 +25,8 @@ class Session(val client: Client): HasStateString
 
     val sbuf: ByteBuffer = ByteBuffer.allocate(256)
     val rbuf: ByteBuffer = ByteBuffer.allocate(256)
+
+    @JvmField var trace = false
 
     // ---------------------------------------------------------------------------------------------
 
@@ -45,12 +46,12 @@ class Session(val client: Client): HasStateString
 
     // ---------------------------------------------------------------------------------------------
 
-    override fun toString()
+    val log_header
         = "cauth(${client.username})"
 
     // ---------------------------------------------------------------------------------------------
 
-    override fun state_string()
+    override fun toString()
         = "Session {\n" +
         "    version: ${client.version},\n" +
         "    user: ${client.username},\n" +

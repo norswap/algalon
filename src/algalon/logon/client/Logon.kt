@@ -6,7 +6,6 @@ import algalon.logon.Opcode
 import algalon.logon.Opcode.*
 import algalon.logon.Errcode
 import algalon.logon.Errcode.*
-import algalon.settings.TRACE_AUTH
 import algalon.utils.*
 import algalon.utils.net.*
 import org.pmw.tinylog.Logger
@@ -18,7 +17,7 @@ import java.nio.ByteBuffer
 
 fun Session.read (read: Int, callback: () -> Unit)
 {
-    socket.read(read, rbuf, this, callback)
+    socket.read(read, rbuf, this, client.read_timeout, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -26,7 +25,7 @@ fun Session.read (read: Int, callback: () -> Unit)
 fun Session.write (callback: () -> Unit)
 {
     sbuf.flip()
-    socket.write(sbuf, this, callback)
+    socket.write(sbuf, this, client.write_timeout, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -53,8 +52,9 @@ fun Session.auth_failure(msg: String): Boolean
 // -------------------------------------------------------------------------------------------------
 
 @Suppress("NOTHING_TO_INLINE")
-private inline fun Session.trace_auth (msg: String) {
-    if (TRACE_AUTH) Logger.trace("[$this] $msg")
+private inline fun Session.trace_auth (msg: String)
+{
+    if (trace) Logger.trace("[$log_header] $msg")
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -145,7 +145,7 @@ fun Session.handle_server_challenge()
     */
 
     val username = client.username.utf8
-    val a  = BigUnsigned.random(19)
+    val a  = BigUnsigned(RANDOM, 19) // TODO unsafe
     A  = g.exp_mod(a, N)
     val u  = BigUnsigned(sha1.digest(A.bytes, B.bytes))
     val x  = private_key(username, client.password.utf8, salt)

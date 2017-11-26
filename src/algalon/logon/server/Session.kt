@@ -3,23 +3,26 @@ import algalon.utils.BigUnsigned
 import algalon.logon.Version
 import algalon.logon.server.Session.Status.*
 import algalon.database.ChilledSessions
-import algalon.database.User
+import algalon.database.Account
+import algalon.database.DatabaseSession
 import algalon.logon.Opcode
-import algalon.utils.HasStateString
 import algalon.utils.net.Socket
 import algalon.utils.net.SocketHook
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
 
 /**
- * Container for data related to an authentication attempt on the server side.
+ * Container for data related to an logon attempt on the server side.
  */
-class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
+class Session (val server: Server, val sock: Socket): DatabaseSession(), SocketHook
 {
     // ---------------------------------------------------------------------------------------------
 
     var sbuf: ByteBuffer = ByteBuffer.allocate(256)
     val rbuf: ByteBuffer = ByteBuffer.allocate(256)
+
+    /** Whether the session should be traced. */
+    var trace = false
 
     init {
         server.count.incrementAndGet()
@@ -49,7 +52,7 @@ class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
     var username: String? = null
 
     /** The user that has authenticated. */
-    lateinit var user: User
+    lateinit var account: Account
 
     /** Client version. */
     lateinit var version: Version
@@ -66,19 +69,19 @@ class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
 
     // ---------------------------------------------------------------------------------------------
 
-    override fun toString(): String
-    {
-        val id = server.id
-        return username?.let { "sauth($id, $it)" } ?: "sauth($id)"
-    }
+    val log_header: String
+        get() {
+            val id = server.id
+            return username?.let { "slogon($id, $it)" } ?: "slogon($id)"
+        }
 
     // ---------------------------------------------------------------------------------------------
 
     // TODO these things may not be initialized
-    override fun state_string()
+    override fun toString()
         = "Session {\n" +
         "    state: $status,\n" +
-        "    version: $version,\n" +
+        //"    version: $version,\n" +
         "    user: $username,\n" +
         "}"
 
@@ -89,7 +92,7 @@ class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
         server.count.decrementAndGet()
 
         if (status.ordinal > CONNECTED.ordinal && !offensive_close)
-            ChilledSessions.chill(username!!, user.K!!)
+            ChilledSessions.chill(username!!, account.session_key!!)
     }
 
     // ---------------------------------------------------------------------------------------------

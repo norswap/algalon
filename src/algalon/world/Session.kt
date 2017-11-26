@@ -1,11 +1,12 @@
 package algalon.world
-import algalon.utils.HasStateString
 import algalon.utils.net.Socket
 import algalon.utils.net.SocketHook
 
-class Session (val server: Server, val sock: Socket): HasStateString, SocketHook
+class Session (val server: Server, val sock: Socket): SocketHook
 {
-    override fun state_string(): String {
+    val log_header: String = TODO()
+
+    override fun toString(): String {
         TODO()
     }
 

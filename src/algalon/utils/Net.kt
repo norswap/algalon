@@ -1,7 +1,6 @@
 @file:Suppress("PackageDirectoryMismatch")
 package algalon.utils.net
-import algalon.utils.HasStateString
-import algalon.utils.now
+import algalon.utils.Clock
 import algalon.utils.skip
 import org.pmw.tinylog.Logger
 import java.io.EOFException
@@ -12,11 +11,6 @@ import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
 import java.nio.channels.InterruptedByTimeoutException
 import java.util.concurrent.TimeUnit
-
-// -------------------------------------------------------------------------------------------------
-
-val NET_READ_TIMEOUT  = 10_000L
-val NET_WRITE_TIMEOUT = 10_000L
 
 // -------------------------------------------------------------------------------------------------
 
@@ -57,8 +51,6 @@ private abstract class SocketHandler<A> (val socket: Socket): CompletionHandler<
         }
 
         Logger.info("$type: $attachment")
-        if (attachment is HasStateString)
-            Logger.debug("\n" + attachment.state_string())
         if (type == "connection failed")
             Logger.debug(exc)
 
@@ -84,7 +76,7 @@ private class ReadHandler<A> (
         remaining -= result
 
         if (remaining > 0) {
-            val timeout = deadline - now
+            val timeout = deadline - Clock.now
             if (timeout <= 0)
                 failed(InterruptedByTimeoutException(), attachment)
             else
@@ -110,7 +102,7 @@ private class WriteHandler<A> (
     override fun completed (result: Int, attachment: A)
     {
         if (buf.remaining() > 0) {
-            val timeout = deadline - now
+            val timeout = deadline - Clock.now
             if (timeout <= 0)
                 failed(InterruptedByTimeoutException(), attachment)
             else
@@ -139,7 +131,7 @@ fun <A> Socket.read (
         n: Int,
         buf: ByteBuffer,
         attachment: A,
-        timeout: Long = NET_READ_TIMEOUT,
+        timeout: Long,
         handler: () -> Unit)
 {
     assert(n > 0)
@@ -163,21 +155,9 @@ fun <A> Socket.read (
     buf.mark() // 0 (compacted) or p
     buf.skip(r)
 
-    val handlerw = ReadHandler<A>(n - r, this, buf, now + timeout, handler)
+    val handlerw = ReadHandler<A>(n - r, this, buf, Clock.now + timeout, handler)
     read(buf, timeout, TimeUnit.MILLISECONDS, attachment, handlerw)
 }
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * [read] overload, uses [NET_READ_TIMEOUT] as timeout value.
- */
-fun <A> Socket.read (
-    n: Int,
-    buf: ByteBuffer,
-    attachment: A,
-    handler: () -> Unit)
-= read(n, buf, attachment, NET_READ_TIMEOUT, handler)
 
 // -------------------------------------------------------------------------------------------------
 
@@ -189,21 +169,12 @@ fun <A> Socket.read (
 fun <A> Socket.write (
         buf: ByteBuffer,
         attachment: A,
-        timeout: Long = NET_WRITE_TIMEOUT,
+        timeout: Long,
         handler: () -> Unit)
 {
-    val handlerw = WriteHandler<A>(this, buf, timeout, handler)
+    val handlerw = WriteHandler<A>(this, buf, Clock.now + timeout, handler)
     write(buf, timeout, TimeUnit.MILLISECONDS, attachment, handlerw)
 }
-
-/**
- * [write] overload. Uses [NET_WRITE_TIMEOUT] as timeout value.
- */
-fun <A> Socket.write (
-    buf: ByteBuffer,
-    attachment: A,
-    handler: () -> Unit)
-= write(buf, attachment, NET_WRITE_TIMEOUT, handler)
 
 // -------------------------------------------------------------------------------------------------
 

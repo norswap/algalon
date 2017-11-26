@@ -1,7 +1,4 @@
 package algalon.world
-import algalon.settings.N_WORLD_THREADS
-import algalon.settings.WORLD_SERVER_ADDR
-import algalon.settings.WORLD_SHUTDOWN_TIMEOUT
 import algalon.utils.net.AcceptSocket
 import algalon.utils.net.Socket
 import algalon.utils.sleep
@@ -14,20 +11,20 @@ import java.util.concurrent.RejectedExecutionException
 /**
 * Accepts connection requests to the world server.
 */
-class Server(n_threads: Int = N_WORLD_THREADS)
+class Server (val conf: Config)
 {
     // ---------------------------------------------------------------------------------------------
 
     @Volatile private var shutdown = false
     private val handler = AcceptHandler()
-    private val thread_pool = ForkJoinPool(n_threads)
+    private val thread_pool = ForkJoinPool(conf.threads)
     private val async_group = AsynchronousChannelGroup.withThreadPool(thread_pool)
 
     // ---------------------------------------------------------------------------------------------
 
     inner class AcceptHandler: CompletionHandler<Socket, AcceptSocket>
     {
-        override fun completed(socket: Socket, accept_socket: AcceptSocket)
+        override fun completed (socket: Socket, accept_socket: AcceptSocket)
         {
             try {
                 if (!shutdown) {
@@ -45,11 +42,11 @@ class Server(n_threads: Int = N_WORLD_THREADS)
             }
         }
 
-        override fun failed(exc: Throwable, ignored: AcceptSocket)
+        override fun failed (exc: Throwable, accept_socket: AcceptSocket)
         {
             Logger.error("auth loop failed")
             Logger.error(exc)
-            ignored.close()
+            accept_socket.close()
             if (!shutdown) start()
         }
     }
@@ -59,7 +56,7 @@ class Server(n_threads: Int = N_WORLD_THREADS)
     fun start()
     {
         val socket = AcceptSocket.open(async_group)
-        socket.bind(WORLD_SERVER_ADDR)
+        socket.bind(conf.address)
         socket.accept(socket, handler)
     }
 
@@ -70,7 +67,7 @@ class Server(n_threads: Int = N_WORLD_THREADS)
         shutdown = true
         thread_pool.shutdown()
         // better than `thread_pool.awaitTermination`
-        await_quiescence(WORLD_SHUTDOWN_TIMEOUT)
+        await_quiescence(conf.shutdown_timeout)
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -82,11 +79,9 @@ class Server(n_threads: Int = N_WORLD_THREADS)
     fun await_quiescence (seconds: Long = -1)
     {
         var elapsed = 0L
-        // TODO
         while (false) {
             sleep(1000)
-            //if (count.get() == 0) break
-            if (++ elapsed == seconds) break
+            if (seconds > 0 && ++ elapsed == seconds) break
         }
     }
 

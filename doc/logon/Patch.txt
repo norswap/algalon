@@ -1,0 +1,17 @@
+# Patch System
+
+I haven't implemented the patch system, because it doesn't seem like the most important thing
+right now. Also, it seems much easier to put together a custom launcher that handles this part
+rather than reverse-engineer the WoW system, which is necessarily going to be more limited.
+
+Nevertheless, if one wishes to understand this system, he should look at the Mangos auth server:
+https://github.com/mangos/realmd
+
+In particular:
+https://github.com/mangos/realmd/blob/Rel21/Auth/AuthSocket.cpp
+(look at HandleLogonProof and the various HandleXfer functions)
+https://github.com/mangos/realmd/tree/Rel21/Patch
+
+From preliminary observations, it seems that the patch system is able to send a file (a mpq) to the
+client, given its current version. To generate the kind of files needed, this project can help:
+https://github.com/stoneharry/Blizzard-Updater

@@ -1,5 +1,6 @@
 @file:Suppress("NON_EXHAUSTIVE_WHEN")
 package algalon.logon.server
+import algalon.utils.Clock
 import algalon.logon.*
 import algalon.logon.crypto.*
 import algalon.logon.lengths.*
@@ -8,9 +9,10 @@ import algalon.logon.Opcode.*
 import algalon.logon.Errcode
 import algalon.logon.Errcode.*
 import algalon.logon.server.Session.Status.*
-import algalon.database.User
+import algalon.database.Account
 import algalon.database.Users
-import algalon.settings.*
+import algalon.logon.realm.Realm
+import algalon.logon.realm.RealmFlag
 import algalon.utils.*
 import algalon.utils.net.*
 import kotlin.text.Charsets.UTF_8
@@ -24,14 +26,14 @@ import java.security.MessageDigest
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
 
-private fun Session.read (read: Int, timeout: Long = NET_READ_TIMEOUT, callback: () -> Unit)
+private fun Session.read (read: Int, timeout: Long = server.conf.read_timeout, callback: () -> Unit)
 {
     sock.read(read, rbuf, this, timeout, callback)
 }
 
 // -------------------------------------------------------------------------------------------------
 
-private fun Session.write (timeout: Long = NET_WRITE_TIMEOUT, callback: () -> Unit)
+private fun Session.write (timeout: Long = server.conf.write_timeout, callback: () -> Unit)
 {
     sbuf.flip()
     sock.write(sbuf, this, timeout, callback)
@@ -49,9 +51,9 @@ private fun Session.die (msg: String)
 // -------------------------------------------------------------------------------------------------
 
 @Suppress("NOTHING_TO_INLINE")
-private inline fun Session.trace_auth (msg: String)
+private inline fun Session.trace (msg: String)
 {
-    if (TRACE_AUTH) Logger.trace("[$this] $msg")
+    if (trace) Logger.trace("[$log_header] $msg")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +88,7 @@ fun Session.rate_bookkeeping()
     // Each IP address is allowed 1 connection attempt per second (starting with 10).
     // Establish more and you get a 100 seconds penality for each additional connection.
 
-    val now = now
+    val now = Clock.timestamp
     val info = server.rate_book.getOrPut(sock.host) { Server.IPInfo(now, 10) }
     info.budget += now - info.timestamp - 1
     info.timestamp = now
@@ -99,15 +101,15 @@ fun Session.rate_bookkeeping()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun Session.receive_packet (timeout: Long = NET_READ_TIMEOUT)
+fun Session.receive_packet (timeout: Long = server.conf.read_timeout)
     = read(1, timeout) {
         val opcode = rbuf.get()
-        trace_auth("opcode = $opcode")
+        trace("opcode = $opcode")
         when (opcode) {
             LOGON_CHALLENGE.b -> {
                 rate_bookkeeping()
                 read(CLOGON_CHALLENGE_FIX_LENGTH - 1) {
-                    trace_auth("received client challenge")
+                    trace("received client challenge")
                     challenge_opcode = LOGON_CHALLENGE
                     handle_client_challenge()
                 }
@@ -118,7 +120,7 @@ fun Session.receive_packet (timeout: Long = NET_READ_TIMEOUT)
             RECONNECT_CHALLENGE.b -> {
                 rate_bookkeeping()
                 read (CRECONNECT_CHALLENGE_FIX_LENGTH - 1) {
-                    trace_auth("received client reconnect challenge")
+                    trace("received client reconnect challenge")
                     challenge_opcode = RECONNECT_CHALLENGE
                     handle_client_challenge()
                 }
@@ -146,13 +148,13 @@ fun Session.handle_client_challenge()
     rbuf.skip(1) // skip unknown
     len = rbuf.ushort
 
-    if (len > CLOGON_CHALLENGE_MAX_LENGTH)
+    if (len > CLOGON_CHALLENGE_FIX_LENGTH + server.conf.max_username_length)
         return die ("bogus length: {}")
 
     rbuf.skip(4) // skip game name
-    version = version(rbuf.byte, rbuf.byte, rbuf.byte, rbuf.short.i)
+    version = Version(rbuf.byte, rbuf.byte, rbuf.byte, rbuf.short.i)
 
-    if (!version.accepted) {
+    if (!server.conf.accepted_builds.contains(version)) {
         Logger.info("invalid version ({}): {}", version, this)
         return write_error(LOGON_CHALLENGE, AUTH_FAIL_VERSION_INVALID)
     }
@@ -163,7 +165,7 @@ fun Session.handle_client_challenge()
     if (CLOGON_CHALLENGE_FIX_LENGTH - 4 + username_len != len)
         return die ("inconsistent lengths: {}")
 
-    if (username_len > MAX_USERNAME_LEN) {
+    if (username_len > server.conf.max_username_length) {
         Logger.warn("username too long: {}", this)
         return write_error(LOGON_CHALLENGE, AUTH_FAIL_INVALID_CREDENTIALS1)
     }
@@ -179,7 +181,7 @@ fun Session.handle_username()
         return die("crap at end of logon packet: {}")
 
     username = rbuf.bytes(username_len).toString(UTF_8)
-    trace_auth("auth initiated: $username")
+    trace("logon initiated: $username")
 
     Users.load(username!!) {
         when (challenge_opcode) {
@@ -191,17 +193,17 @@ fun Session.handle_username()
 
 // -------------------------------------------------------------------------------------------------
 
-fun Session.handle_user (user: User?)
+fun Session.handle_user (account: Account?)
 {
-    if (user == null) {
-        trace_auth("unknown username")
+    if (account == null) {
+        trace("unknown username")
         return write_error(LOGON_CHALLENGE, AUTH_FAIL_INVALID_CREDENTIALS1)
     }
 
-    this.user = user
-    b1 = BigUnsigned.random(19)
-    B2 = (k * user.verifier + g.exp_mod(b1, N)) % N
-    trace_auth("B = $B2")
+    this.account = account
+    b1 = BigUnsigned(RANDOM, 19) // TODO unsafe
+    B2 = (k * account.pwd_verifier + g.exp_mod(b1, N)) % N
+    trace("B = $B2")
     random_challenge = RANDOM.bytes(16)
 
 
@@ -213,13 +215,13 @@ fun Session.handle_user (user: User?)
     sbuf.put(g.bytes) // g
     sbuf.put(32) // N length
     sbuf.put(N.bytes)
-    sbuf.put(user.salt)
+    sbuf.put(account.pwd_salt)
     sbuf.put(random_challenge) // unknown
     sbuf.put(0) // security flags
 
     write {
         status = SENT_CHALLENGE
-        trace_auth("sent server challenge")
+        trace("sent server challenge")
         receive_packet()
     }
 }
@@ -228,7 +230,7 @@ fun Session.handle_user (user: User?)
 
 fun Session.handle_client_proof()
 {
-    trace_auth("received client proof")
+    trace("received client proof")
 
     if (status != SENT_CHALLENGE)
         return die("out of order proof: {}")
@@ -240,33 +242,33 @@ fun Session.handle_client_proof()
     if ((A % N).is_zero)
         return die("zero SRP6 (A % N) value: {}")
 
-    trace_auth("A = $A")
+    trace("A = $A")
 
     val sha1 = MessageDigest.getInstance("SHA-1")
     val u = BigUnsigned(sha1.digest(A.bytes, B2.bytes))
-    val S = (A * user.verifier.exp_mod(u, N)).exp_mod(b1, N)
+    val S = (A * account.pwd_verifier.exp_mod(u, N)).exp_mod(b1, N)
     val K = session_key_hash(S)
-    val M1s = M1(sha1, username!!.utf8, user.salt, A, B2, K)
+    val M1s = M1(sha1, username!!.utf8, account.pwd_salt, A, B2, K)
 
-    trace_auth("S = $S")
-    trace_auth("salt: " + user.salt.hex_string)
-    trace_auth("client M1 = $M1c")
-    trace_auth("server M1 = $M1s")
+    trace("S = $S")
+    trace("salt: " + account.pwd_salt.hex_string)
+    trace("client M1 = $M1c")
+    trace("server M1 = $M1s")
 
     if (M1c != M1s) {
         Logger.info("invalid logon proof: {}", this)
         return write_error(LOGON_PROOF, AUTH_FAIL_INVALID_CREDENTIALS1)
     }
 
-    user.K = K
+    account.session_key = K
     val M2 = sha1.digest(A.bytes, M1c.bytes, K.bytes)
 
     // NOTE: packet format differs in 2.x and 3.x
-    sbuf.put(LOGON_PROOF) // opcode
+    sbuf.put(LOGON_PROOF.b) // opcode
     sbuf.put(AUTH_SUCCESS.b)
     sbuf.put(M2)
     if (version.major > 1) {
-        sbuf.putInt(AccountFlags.NONE.value)
+        sbuf.putInt(AccountFlag.NONE.value)
         sbuf.putInt(0) // survey id
         sbuf.putInt(0) // unknown flags
     }
@@ -276,37 +278,40 @@ fun Session.handle_client_proof()
 
     write {
         status = CONNECTED
-        trace_auth("sent server proof")
+        trace("sent server proof")
         receive_packet()
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fun Session.handle_user_reconnect (user: User?)
+fun Session.handle_user_reconnect (account: Account?)
 {
-    if (user == null) {
-        trace_auth("unknown username")
+    if (account == null) {
+        trace("unknown username")
         return write_error(RECONNECT_CHALLENGE, AUTH_FAIL_INVALID_CREDENTIALS1)
     }
 
-    this.user = user
+    // TODO must set the version
+    // TODO must save the version
 
-    if (user.K == null) {
-        trace_auth("unknown session")
+    this.account = account
+
+    if (account.session_key == null) {
+        trace("unknown session")
         return write_error(RECONNECT_CHALLENGE, AUTH_FAIL_UNKNOWN1)
     }
 
     random_challenge = RANDOM.bytes(16)
 
-    sbuf.put(RECONNECT_CHALLENGE) // opcode
+    sbuf.put(RECONNECT_CHALLENGE.b) // opcode
     sbuf.put(AUTH_SUCCESS.b) // error
     sbuf.put(random_challenge)
     sbuf.put(ByteArray(16)) // zeroed
 
     write {
         status = SENT_RECONNECT_CHALLENGE
-        trace_auth("sent server reconnect challenge")
+        trace("sent server reconnect challenge")
         receive_packet()
     }
 }
@@ -315,7 +320,7 @@ fun Session.handle_user_reconnect (user: User?)
 
 fun Session.handle_reconnect_proof()
 {
-    trace_auth("received client reconnect proof")
+    trace("received client reconnect proof")
 
     if (status != SENT_RECONNECT_CHALLENGE)
         return die("out of order reconnect proof: {}")
@@ -325,27 +330,27 @@ fun Session.handle_reconnect_proof()
     rbuf.skip(21) // unused R3 + number of keys
 
     val sha1 = MessageDigest.getInstance("SHA-1")!!
-    sha1.update(user.username.utf8)
+    sha1.update(account.name.utf8)
     sha1.update(R1.bytes)
     sha1.update(random_challenge)
-    sha1.update(user.K!!.bytes)
+    sha1.update(account.session_key!!.bytes)
     val R2s = BigUnsigned(sha1.digest())
 
-    trace_auth("R1 = $R1")
-    trace_auth("client R2 = $R2c")
-    trace_auth("server R2 = $R2s")
+    trace("R1 = $R1")
+    trace("client R2 = $R2c")
+    trace("server R2 = $R2s")
 
     if (R2c != R2s)
         return die("invalid reconnect logon proof: {}")
 
-    sbuf.put(RECONNECT_PROOF) // opcode
+    sbuf.put(RECONNECT_PROOF.b) // opcode
     sbuf.put(AUTH_SUCCESS.b) // error
     if (version.major > 1)
         sbuf.putShort(0) // unknown
 
     write {
         status = CONNECTED
-        trace_auth("sent server reconnect proof")
+        trace("sent server reconnect proof")
         receive_packet()
     }
 }
@@ -358,7 +363,7 @@ fun Session.handle_realmlist()
         return die("out of order realm list request: {}")
 
     rbuf.skip(4) // unknown
-    Users.with_realms(user, this::send_realmlist)
+    Users.with_realms(account, this::send_realmlist)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -370,7 +375,7 @@ fun Session.send_realmlist (realms: List<Realm>, character_counts: Map<Int, Int>
     sbuf = ByteBuffer.allocate(buf_size)
     sbuf.order(ByteOrder.LITTLE_ENDIAN)
 
-    sbuf.put(REALM_LIST)
+    sbuf.put(REALM_LIST.b)
     sbuf.putShort(0) // placeholder for packet size
     sbuf.putInt(0)   // unknown
 
@@ -381,39 +386,39 @@ fun Session.send_realmlist (realms: List<Realm>, character_counts: Map<Int, Int>
 
     for (realm in realms)
     {
-        var flags = realm.flags_value
+        var flags = realm.flags
 
-        if (!realm.accepts(version)) {
-            flags += Realm.Flag.OFFLINE.value
-            flags += Realm.Flag.SPECIFY_BUILD.value
+        if (!realm.version(version)) {
+            flags += RealmFlag.OFFLINE.value
+            flags += RealmFlag.SPECIFY_BUILD.value
         }
-
-        val specify_build = (flags and Realm.Flag.SPECIFY_BUILD.value) != 0
 
         if (version.major > 1) {
             sbuf.put(realm.type.value)
-            sbuf.put(if (realm.accepts(user)) 0.b else 1.b)
+            sbuf.put(if (realm.locked(account)) 0.b else 1.b)
         }
         else {
             sbuf.putInt(realm.type.value.i)
         }
 
         sbuf.put(flags.b)
-        sbuf.put(realm.display_name(specify_build).utf8)
+        sbuf.put(realm.display_name.utf8)
         sbuf.put(0) // null terminator
         sbuf.put(realm.ip_string.utf8)
         sbuf.put(0) // null terminator
-        sbuf.putFloat(realm.population_level)
+        sbuf.putFloat(realm.population.value)
         sbuf.put(character_counts[realm.id]!!.b)
         sbuf.put(realm.timezone.b)
         sbuf.put(realm.id.b)
 
-        if (version.major > 1 && specify_build) {
-            sbuf.put(version.major.b)
-            sbuf.put(version.minor.b)
-            sbuf.put(version.bugfix.b)
-            sbuf.putShort(version.build.s)
-        }
+//        // If flags include SPECIFY_BUILD, must send the build number.
+//        // We don't use SPECIFY_BUILD.
+//        if (version.major > 1 && specify_build) {
+//            sbuf.put(version.major.b)
+//            sbuf.put(version.minor.b)
+//            sbuf.put(version.bugfix.b)
+//            sbuf.putShort(version.build.s)
+//        }
     }
 
     sbuf.putShort(16) // footer (unknown)
@@ -421,7 +426,7 @@ fun Session.send_realmlist (realms: List<Realm>, character_counts: Map<Int, Int>
 
     write {
         sbuf = old_sbuf
-        trace_auth("sent realm list")
+        trace("sent realm list")
         receive_packet(60_000) // 1 min
     }
 }

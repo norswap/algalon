@@ -1,5 +1,5 @@
 package algalon.logon.server
-import algalon.settings.*
+import algalon.database.LogonDatabase
 import org.pmw.tinylog.Logger
 import algalon.utils.net.*
 import algalon.utils.sleep
@@ -11,9 +11,11 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Accepts connection requests to the auth server.
+ * Accepts connection requests to the logon server.
+ *
+ * Server instantiation should not be done concurrently.
  */
-class Server (n_threads: Int = N_AUTH_THREADS)
+class Server (val conf: Config)
 {
     // ---------------------------------------------------------------------------------------------
 
@@ -21,11 +23,12 @@ class Server (n_threads: Int = N_AUTH_THREADS)
         var next_id = 0
     }
 
+    /** Information related to an IP trying to logon. */
     class IPInfo (var timestamp: Long, var budget: Long)
 
     // ---------------------------------------------------------------------------------------------
 
-    /** The ID of this auth server (in case there are multiple */
+    /** The ID of this logon server (in case there are multiple */
     val id = next_id++
 
     /** The number of running [Session]. */
@@ -36,18 +39,26 @@ class Server (n_threads: Int = N_AUTH_THREADS)
 
     @Volatile private var shutdown = false
     private val handler = AcceptHandler()
-    private val thread_pool = ForkJoinPool(n_threads)
+    private val thread_pool = ForkJoinPool(conf.threads)
     private val async_group = AsynchronousChannelGroup.withThreadPool(thread_pool)
+
+    // ---------------------------------------------------------------------------------------------
+
+    val database = LogonDatabase(conf)
 
     // ---------------------------------------------------------------------------------------------
 
     inner class AcceptHandler: CompletionHandler<Socket, AcceptSocket>
     {
-        override fun completed(socket: Socket, accept_socket: AcceptSocket)
+        override fun completed (socket: Socket, accept_socket: AcceptSocket)
         {
             try {
                 if (!shutdown) {
-                    thread_pool.execute { Session(this@Server, socket).receive_packet() }
+                    thread_pool.execute {
+                        val session = Session(this@Server, socket)
+                        session.trace = conf.trace
+                        session.receive_packet()
+                    }
                     accept_socket.accept(accept_socket, this)
                 }
                 else socket.close()
@@ -55,17 +66,17 @@ class Server (n_threads: Int = N_AUTH_THREADS)
             catch (e: RejectedExecutionException) {
                 socket.close()
                 if (!shutdown) {
-                    Logger.error("auth pool rejection")
+                    Logger.error("logon pool rejection")
                     Logger.error(e)
                 }
             }
         }
 
-        override fun failed(exc: Throwable, ignored: AcceptSocket)
+        override fun failed (exc: Throwable, accept_socket: AcceptSocket)
         {
-            Logger.error("auth loop failed")
+            Logger.error("logon loop failed")
             Logger.error(exc)
-            ignored.close()
+            accept_socket.close()
             if (!shutdown) start()
         }
     }
@@ -75,7 +86,7 @@ class Server (n_threads: Int = N_AUTH_THREADS)
     fun start()
     {
         val socket = AcceptSocket.open(async_group)
-        socket.bind(AUTH_SERVER_ADDR)
+        socket.bind(conf.address)
         socket.accept(socket, handler)
     }
 
@@ -86,14 +97,15 @@ class Server (n_threads: Int = N_AUTH_THREADS)
         shutdown = true
         thread_pool.shutdown()
         // better than `thread_pool.awaitTermination`
-        await_quiescence(AUTH_SHUTDOWN_TIMEOUT)
+        await_quiescence(conf.shutdown_timeout)
     }
 
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Waits for there to be no more active auth sessions (polled at one second intervals), or
-     * at most [seconds] seconds. If [seconds] is negative, waits an unbounded amount of time.
+     * Waits for there to be no more active logon sessions (polled at one second intervals), or
+     * at most [seconds] seconds. If [seconds] is negative or omitted, waits an unbounded amount of
+     * time.
      */
     fun await_quiescence (seconds: Long = -1)
     {

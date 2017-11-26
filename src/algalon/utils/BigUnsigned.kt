@@ -1,20 +1,19 @@
 package algalon.utils
 import java.math.BigInteger
 import java.security.MessageDigest
+import java.util.Random
 
 /**
  * Represents a big unsigned integer out of which a little-endian byte array can be obtained.
  *
- * The byte array is ordered little-endian, the bytes themselves are unchanged.
- *
- * The representation does not include a sign bit.
+ * The byte array representation does not include a sign bit.
  */
 class BigUnsigned (val big_integer: BigInteger)
 {
     // ---------------------------------------------------------------------------------------------
 
     init {
-        assert(big_integer.signum() >= 0)
+        assert(big_integer.signum() >= 0) // positive
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -38,23 +37,25 @@ class BigUnsigned (val big_integer: BigInteger)
      * The byte array may have trailing zero bytes.
      */
     constructor (bytes: ByteArray): this(BigInteger(bytes.big_endian())) {
-        if (big_integer_bytes() == bytes.size) _bytes = bytes
+        if (representation_bytes() == bytes.size) _bytes = bytes
     }
+
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Construct a big unsigned with [bytes] random bytes.
+     */
+    constructor (random: Random, bytes: Int): this(BigInteger(bytes * 8, random))
 
     // ---------------------------------------------------------------------------------------------
 
     companion object
     {
         /**
-         * Construct a big unsigned with [bytes] random bytes.
+         * Reverse and prepend a 0 (in order to force the positive sign).
          */
-        fun random (bytes: Int): BigUnsigned {
-            return BigUnsigned(BigInteger(bytes * 8, RANDOM))
-        }
-
         private fun ByteArray.big_endian(): ByteArray
         {
-            // Reverse and prepend a 0 (in order to force the positive sign).
             val reversed = ByteArray(size + 1)
             for (i in indices) reversed[size - i] = this[i]
             return reversed
@@ -75,7 +76,7 @@ class BigUnsigned (val big_integer: BigInteger)
      */
     val bytes: ByteArray
         get() {
-            some(_bytes) { return it }
+            _bytes?.let { return it }
             val computed = bytes()
             _bytes = computed
             return computed
@@ -86,18 +87,21 @@ class BigUnsigned (val big_integer: BigInteger)
     /**
      * Minimum number of bytes required to represent this number.
      */
-    private fun big_integer_bytes(): Int
+    private fun representation_bytes(): Int
         = (big_integer.bitLength() + 7) / 8 // round up
 
     // ---------------------------------------------------------------------------------------------
 
-    fun bytes(min: Int = (big_integer_bytes())): ByteArray
+    /**
+     * Returns a little-endian unsigned representation of this number, as a byte array of
+     * at least [min] bytes. If necessary, 0 padding will be added at the end to reach the
+     * minimum size.
+     */
+    fun bytes (min: Int = (representation_bytes())): ByteArray
     {
-        val b = _bytes
-        if (b != null && b.size >= min) return b
+        _bytes?.let { if (it.size >= min) return it }
 
         // This two's complement representation has its bytes ordered big-endian.
-        // (Each byte has regular endianness -- no need to mess with them.)
         // The spec guarantees at least a prefix zero bit for positive numbers.
         val bigint_bytes = big_integer.toByteArray()
 
@@ -126,7 +130,7 @@ class BigUnsigned (val big_integer: BigInteger)
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Computes (this ^ exp) % mod.
+     * Computes `(this ^ exp) % mod`.
      */
     fun exp_mod (exp: BigUnsigned, mod: BigUnsigned): BigUnsigned
         = BigUnsigned(big_integer.modPow(exp.big_integer, mod.big_integer))
@@ -143,6 +147,9 @@ class BigUnsigned (val big_integer: BigInteger)
 
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * Compute `(this - other) % mod`.
+     */
     fun min_mod (other: BigUnsigned, mod: BigUnsigned): BigUnsigned
     {
         val tmp = (big_integer - other.big_integer) % mod.big_integer
@@ -163,7 +170,7 @@ class BigUnsigned (val big_integer: BigInteger)
      * Returns the big unsigned resulting from applying the given digest over
      * the bytes of this number.
      */
-    operator fun times (digest: MessageDigest): BigUnsigned
+    fun digest (digest: MessageDigest): BigUnsigned
         = BigUnsigned(digest.digest(bytes))
 
     // ---------------------------------------------------------------------------------------------
@@ -173,6 +180,9 @@ class BigUnsigned (val big_integer: BigInteger)
 
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * Returns the hex string representation of the big unsigned.
+     */
     override fun toString(): String
         = bytes.hex_string
 

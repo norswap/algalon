@@ -8,8 +8,8 @@ package algalon.utils
  */
 fun String.reverse_array (nul: Boolean = false): ByteArray
 {
-    val out = ByteArray(length) { this[lastIndex - it].toByte() }
-    return if (nul) out + '\u0000'.toByte() else out
+    val out = ByteArray(length) { this[lastIndex - it].b }
+    return if (nul) out + '\u0000'.b else out
 }
 
 // -------------------------------------------------------------------------------------------------

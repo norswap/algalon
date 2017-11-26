@@ -1,7 +1,6 @@
 @file:Suppress("PackageDirectoryMismatch")
 package algalon.logon.lengths
 import algalon.logon.Version
-import algalon.settings.MAX_USERNAME_LEN
 
 // -------------------------------------------------------------------------------------------------
 
@@ -10,7 +9,6 @@ import algalon.settings.MAX_USERNAME_LEN
 // -------------------------------------------------------------------------------------------------
 
 val CLOGON_CHALLENGE_FIX_LENGTH         = 34
-val CLOGON_CHALLENGE_MAX_LENGTH         = CLOGON_CHALLENGE_FIX_LENGTH + MAX_USERNAME_LEN
 
 // -------------------------------------------------------------------------------------------------
 
@@ -31,7 +29,6 @@ val SLOGON_PROOF_MAX_LENGTH             = 26
 // -------------------------------------------------------------------------------------------------
 
 val CRECONNECT_CHALLENGE_FIX_LENGTH     = CLOGON_CHALLENGE_FIX_LENGTH
-val CRECONNECT_CHALLENGE_MAX_LENGTH     = CLOGON_CHALLENGE_MAX_LENGTH
 
 // -------------------------------------------------------------------------------------------------
 

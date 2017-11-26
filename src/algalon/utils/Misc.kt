@@ -2,58 +2,33 @@ package algalon.utils
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Arrays
-import java.util.Random
 
 // -------------------------------------------------------------------------------------------------
 
 /**
- * A sample random instance, for general purpose work. Thread-safe, but only use in fixed places,
- * to avoid contention.
+ * A sample random instance, for general purpose work. Thread-safe, but only use in places
+ * whose load does not scale with the number of clients (or worse, interactions) to avoid
+ * contention.
  */
 val RANDOM = SecureRandom()
 
 // -------------------------------------------------------------------------------------------------
 
 /**
- * A sample SHA1 instance, to be used in initialization and at some fixed places.
+ * A sample SHA1 instance, to be used in initialization and at some pre-determined places.
  * BEWARE: NOT THREAD-SAFE
  */
-val SHA1 = MessageDigest.getInstance("SHA-1")
+val SHA1 = MessageDigest.getInstance("SHA-1")!!
 
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Returns an array of [n] random bytes.
+ * Update the digest with all the given arrays, then calls [MessageDigest.digest].
  */
-fun Random.bytes(n: Int): ByteArray
+@Suppress("NOTHING_TO_INLINE")
+inline fun MessageDigest.digest (vararg arrays: ByteArray): ByteArray
 {
-    val random = ByteArray(n)
-    nextBytes(random)
-    return random
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * Same as updating the digest with the parameter, then calling [MessageDigest.digest].
- */
-fun MessageDigest.digest(a: ByteArray, b: ByteArray): ByteArray
-{
-    update(a)
-    update(b)
-    return digest()
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * Same as updating the digest with the parameter, then calling [MessageDigest.digest].
- */
-fun MessageDigest.digest(a: ByteArray, b: ByteArray, c: ByteArray): ByteArray
-{
-    update(a)
-    update(b)
-    update(c)
+    for (array in arrays) update(array)
     return digest()
 }
 
@@ -66,14 +41,6 @@ operator fun StringBuilder.plusAssign (o: Any?)
 {
     append(o)
 }
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * `if (value != null) f(value) else null`
- */
-inline fun <T: Any, R> some (value: T?, f: (T) -> R): R?
-    = if (value != null) f(value) else null
 
 // -------------------------------------------------------------------------------------------------
 
@@ -93,14 +60,6 @@ fun sleep (millis: Long) {
     try { Thread.sleep(millis) }
     catch (e: InterruptedException) {}
 }
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * Returns the current unix timestamp (aka epoch).
- */
-val now: Long
-    get() = System.currentTimeMillis() / 1000L
 
 // -------------------------------------------------------------------------------------------------
 

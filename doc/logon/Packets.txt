@@ -245,7 +245,7 @@ Footer:
 Where present, the slash (/) distinguishes between the Vanilla / Extension sizes.
 
 The type of the realm is Normal, PvP, RP, ... (see `Realm.Type`). This is called
-"icon" in AscEmu. (Maybe because an icon is shown in extensions?)
+"icon" in AscEmu. (Maybe an icon is shown in extensions?)
 
 Flags are documented in the Realm.Flag enumeration.
 
@@ -309,7 +309,7 @@ Trinity 3.3.5 gives the following list:
 So it's probably version-dependent. My Vanilla US client allows me to connect
 only on 0 and 1. Seems like 0 should be the preferred value on vanilla.
 
-The ID identifies the realm. Many server send 0 for Vanilla, but my client seems to accept
+The ID identifies the realm. Many server send 0 for Vanilla clients, but my client seems to accept
 any value (even if presumably it does not use it).
 
 Mangos sends 0 for all extensions and says the value is unknown (but might be the ID).
